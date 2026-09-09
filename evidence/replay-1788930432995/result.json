@@ -1,0 +1,5 @@
+{
+  "status": "business_outcome",
+  "outcome": "member_frozen",
+  "description": "The member account is frozen; the action is not permitted."
+}

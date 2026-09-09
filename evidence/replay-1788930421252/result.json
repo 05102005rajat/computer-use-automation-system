@@ -1,0 +1,5 @@
+{
+  "status": "business_outcome",
+  "outcome": "member_not_found",
+  "description": "No member exists with the given ID."
+}

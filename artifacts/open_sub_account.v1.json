@@ -1,0 +1,573 @@
+{
+  "schemaVersion": 1,
+  "id": "open_sub_account-1788930353325",
+  "name": "open_sub_account",
+  "version": 1,
+  "description": "Look up a member, read their savings balance, and open a new sub-account for them.",
+  "createdAt": "2026-09-09T05:05:53.325Z",
+  "discovery": {
+    "sourceGoal": "Log into the teller console (username \"teller\", password \"[REDACTED]\"). Then look up member 10023, extract their current savings balance as \"savingsBalance\", then open a new \"share\" sub-account for them with nickname \"Holiday Fund\" and an initial deposit of 50. Once you reach the confirmation screen, extract the confirmation number as \"confirmationNumber\", then finish successfully.",
+    "model": "claude-sonnet-4-5",
+    "transcriptRef": "evidence/discovery-1788930310094"
+  },
+  "target": {
+    "vendorProduct": "meridian-teller-console",
+    "baseUrl": "http://localhost:4100",
+    "entryPath": "/login"
+  },
+  "riskLevel": "risky",
+  "approval": "approved",
+  "inputs": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "description": "Member ID to look up.",
+      "required": true,
+      "sensitive": false
+    },
+    {
+      "name": "subAccountType",
+      "type": "string",
+      "description": "Sub-account type: \"share\", \"christmas_club\", or \"money_market\".",
+      "required": true,
+      "sensitive": false
+    },
+    {
+      "name": "nickname",
+      "type": "string",
+      "description": "Nickname for the new sub-account.",
+      "required": true,
+      "sensitive": false
+    },
+    {
+      "name": "depositAmount",
+      "type": "number",
+      "description": "Initial deposit amount in USD.",
+      "required": true,
+      "sensitive": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "savingsBalance",
+      "type": "string",
+      "description": "Member's savings balance read before opening the sub-account."
+    },
+    {
+      "name": "confirmationNumber",
+      "type": "string",
+      "description": "Confirmation number of the newly opened sub-account."
+    }
+  ],
+  "steps": [
+    {
+      "id": "step-0",
+      "description": "Enter application",
+      "frame": "main",
+      "timeoutMs": 8000,
+      "kind": "navigate",
+      "url": {
+        "kind": "literal",
+        "value": "http://localhost:4100/login"
+      }
+    },
+    {
+      "id": "step-1",
+      "description": "Type into \"Username\"",
+      "frame": "main",
+      "timeoutMs": 8000,
+      "kind": "type",
+      "locator": {
+        "candidates": [
+          {
+            "strategy": "attribute",
+            "attribute": "name",
+            "value": "username"
+          },
+          {
+            "strategy": "text",
+            "text": "Username",
+            "exact": false
+          },
+          {
+            "strategy": "css",
+            "selector": "tbody > tr > td > table > tbody > tr:nth-of-type(1) > td:nth-of-type(2) > input"
+          }
+        ],
+        "robustnessNote": "form field \"name\" attribute is a developer-chosen identifier, changes less often than layout; visible text match as a secondary, content-based fallback; structural CSS path -- last resort, brittle against added/removed sibling rows"
+      },
+      "value": {
+        "kind": "param",
+        "name": "username"
+      }
+    },
+    {
+      "id": "step-2",
+      "description": "Type into \"Password\"",
+      "frame": "main",
+      "timeoutMs": 8000,
+      "kind": "type",
+      "locator": {
+        "candidates": [
+          {
+            "strategy": "attribute",
+            "attribute": "name",
+            "value": "password"
+          },
+          {
+            "strategy": "text",
+            "text": "Password",
+            "exact": false
+          },
+          {
+            "strategy": "css",
+            "selector": "tbody > tr > td > table > tbody > tr:nth-of-type(2) > td:nth-of-type(2) > input"
+          }
+        ],
+        "robustnessNote": "form field \"name\" attribute is a developer-chosen identifier, changes less often than layout; visible text match as a secondary, content-based fallback; structural CSS path -- last resort, brittle against added/removed sibling rows"
+      },
+      "value": {
+        "kind": "param",
+        "name": "password"
+      }
+    },
+    {
+      "id": "step-3",
+      "description": "Click \"Sign In\"",
+      "frame": "main",
+      "timeoutMs": 8000,
+      "kind": "click",
+      "locator": {
+        "candidates": [
+          {
+            "strategy": "role",
+            "role": "button",
+            "name": "Sign In"
+          },
+          {
+            "strategy": "css",
+            "selector": "tbody > tr > td > table > tbody > tr:nth-of-type(4) > td > input"
+          }
+        ],
+        "robustnessNote": "role=\"button\" name=\"Sign In\" is the browser-computed accessible name (works for input[type=submit]'s value attribute too), stable across markup/CSS refactors; structural CSS path -- last resort, brittle against added/removed sibling rows"
+      },
+      "risky": false
+    },
+    {
+      "id": "step-4",
+      "description": "Type into \"Member ID\"",
+      "frame": "main",
+      "timeoutMs": 8000,
+      "kind": "type",
+      "locator": {
+        "candidates": [
+          {
+            "strategy": "attribute",
+            "attribute": "name",
+            "value": "memberId"
+          },
+          {
+            "strategy": "text",
+            "text": "Member ID",
+            "exact": false
+          },
+          {
+            "strategy": "css",
+            "selector": "tbody > tr > td > table > tbody > tr:nth-of-type(1) > td:nth-of-type(2) > input"
+          }
+        ],
+        "robustnessNote": "form field \"name\" attribute is a developer-chosen identifier, changes less often than layout; visible text match as a secondary, content-based fallback; structural CSS path -- last resort, brittle against added/removed sibling rows"
+      },
+      "value": {
+        "kind": "param",
+        "name": "memberId"
+      }
+    },
+    {
+      "id": "step-5",
+      "description": "Click \"Look Up Member\"",
+      "frame": "main",
+      "timeoutMs": 8000,
+      "kind": "click",
+      "locator": {
+        "candidates": [
+          {
+            "strategy": "role",
+            "role": "button",
+            "name": "Look Up Member"
+          },
+          {
+            "strategy": "css",
+            "selector": "tbody > tr > td > table > tbody > tr:nth-of-type(3) > td > input"
+          }
+        ],
+        "robustnessNote": "role=\"button\" name=\"Look Up Member\" is the browser-computed accessible name (works for input[type=submit]'s value attribute too), stable across markup/CSS refactors; structural CSS path -- last resort, brittle against added/removed sibling rows"
+      },
+      "risky": false
+    },
+    {
+      "id": "step-6",
+      "description": "Extract \"savingsBalance\" from \"$4382.10\"",
+      "frame": "main",
+      "timeoutMs": 8000,
+      "kind": "extract",
+      "locator": {
+        "candidates": [
+          {
+            "strategy": "text",
+            "text": "$4382.10",
+            "exact": false
+          },
+          {
+            "strategy": "css",
+            "selector": "table > tbody > tr:nth-of-type(5) > td > table > tbody > tr > td:nth-of-type(2)"
+          }
+        ],
+        "robustnessNote": "visible text match as a secondary, content-based fallback; structural CSS path -- last resort, brittle against added/removed sibling rows"
+      },
+      "outputName": "savingsBalance",
+      "attribute": "text"
+    },
+    {
+      "id": "step-7",
+      "description": "Select \"share\" in \"Account Type\"",
+      "frame": {
+        "iframeLocator": {
+          "candidates": [
+            {
+              "strategy": "attribute",
+              "attribute": "src",
+              "value": "/members/*/sub-accounts/new"
+            },
+            {
+              "strategy": "css",
+              "selector": "iframe"
+            }
+          ],
+          "robustnessNote": "Only iframe on the page at recording time; matched on a path-shape (member id wildcarded) rather than the literal src so the same locator works for any member id, with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
+        }
+      },
+      "timeoutMs": 8000,
+      "kind": "select",
+      "locator": {
+        "candidates": [
+          {
+            "strategy": "role",
+            "role": "combobox",
+            "name": "Account Type"
+          },
+          {
+            "strategy": "attribute",
+            "attribute": "name",
+            "value": "type"
+          },
+          {
+            "strategy": "css",
+            "selector": "html > body > table > tbody > tr:nth-of-type(1) > td:nth-of-type(2) > select"
+          }
+        ],
+        "robustnessNote": "role=\"combobox\" name=\"Account Type\" is the browser-computed accessible name (works for input[type=submit]'s value attribute too), stable across markup/CSS refactors; form field \"name\" attribute is a developer-chosen identifier, changes less often than layout; structural CSS path -- last resort, brittle against added/removed sibling rows"
+      },
+      "value": {
+        "kind": "param",
+        "name": "subAccountType"
+      }
+    },
+    {
+      "id": "step-8",
+      "description": "Type into \"Nickname\"",
+      "frame": {
+        "iframeLocator": {
+          "candidates": [
+            {
+              "strategy": "attribute",
+              "attribute": "src",
+              "value": "/members/*/sub-accounts/new"
+            },
+            {
+              "strategy": "css",
+              "selector": "iframe"
+            }
+          ],
+          "robustnessNote": "Only iframe on the page at recording time; matched on a path-shape (member id wildcarded) rather than the literal src so the same locator works for any member id, with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
+        }
+      },
+      "timeoutMs": 8000,
+      "kind": "type",
+      "locator": {
+        "candidates": [
+          {
+            "strategy": "attribute",
+            "attribute": "name",
+            "value": "nickname"
+          },
+          {
+            "strategy": "text",
+            "text": "Nickname",
+            "exact": false
+          },
+          {
+            "strategy": "css",
+            "selector": "html > body > table > tbody > tr:nth-of-type(2) > td:nth-of-type(2) > input"
+          }
+        ],
+        "robustnessNote": "form field \"name\" attribute is a developer-chosen identifier, changes less often than layout; visible text match as a secondary, content-based fallback; structural CSS path -- last resort, brittle against added/removed sibling rows"
+      },
+      "value": {
+        "kind": "param",
+        "name": "nickname"
+      }
+    },
+    {
+      "id": "step-9",
+      "description": "Type into \"Initial Deposit\"",
+      "frame": {
+        "iframeLocator": {
+          "candidates": [
+            {
+              "strategy": "attribute",
+              "attribute": "src",
+              "value": "/members/*/sub-accounts/new"
+            },
+            {
+              "strategy": "css",
+              "selector": "iframe"
+            }
+          ],
+          "robustnessNote": "Only iframe on the page at recording time; matched on a path-shape (member id wildcarded) rather than the literal src so the same locator works for any member id, with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
+        }
+      },
+      "timeoutMs": 8000,
+      "kind": "type",
+      "locator": {
+        "candidates": [
+          {
+            "strategy": "attribute",
+            "attribute": "name",
+            "value": "deposit"
+          },
+          {
+            "strategy": "text",
+            "text": "Initial Deposit",
+            "exact": false
+          },
+          {
+            "strategy": "css",
+            "selector": "html > body > table > tbody > tr:nth-of-type(3) > td:nth-of-type(2) > input"
+          }
+        ],
+        "robustnessNote": "form field \"name\" attribute is a developer-chosen identifier, changes less often than layout; visible text match as a secondary, content-based fallback; structural CSS path -- last resort, brittle against added/removed sibling rows"
+      },
+      "value": {
+        "kind": "param",
+        "name": "depositAmount"
+      }
+    },
+    {
+      "id": "step-10",
+      "description": "Click \"Open Sub-Account\"",
+      "frame": {
+        "iframeLocator": {
+          "candidates": [
+            {
+              "strategy": "attribute",
+              "attribute": "src",
+              "value": "/members/*/sub-accounts/new"
+            },
+            {
+              "strategy": "css",
+              "selector": "iframe"
+            }
+          ],
+          "robustnessNote": "Only iframe on the page at recording time; matched on a path-shape (member id wildcarded) rather than the literal src so the same locator works for any member id, with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
+        }
+      },
+      "timeoutMs": 8000,
+      "kind": "click",
+      "locator": {
+        "candidates": [
+          {
+            "strategy": "role",
+            "role": "button",
+            "name": "Open Sub-Account"
+          },
+          {
+            "strategy": "css",
+            "selector": "html > body > table > tbody > tr:nth-of-type(5) > td > input"
+          }
+        ],
+        "robustnessNote": "role=\"button\" name=\"Open Sub-Account\" is the browser-computed accessible name (works for input[type=submit]'s value attribute too), stable across markup/CSS refactors; structural CSS path -- last resort, brittle against added/removed sibling rows"
+      },
+      "risky": true
+    },
+    {
+      "id": "step-11",
+      "description": "Extract \"confirmationNumber\" from \"SA-1011\"",
+      "frame": {
+        "iframeLocator": {
+          "candidates": [
+            {
+              "strategy": "attribute",
+              "attribute": "src",
+              "value": "/members/*/sub-accounts/new"
+            },
+            {
+              "strategy": "css",
+              "selector": "iframe"
+            }
+          ],
+          "robustnessNote": "Only iframe on the page at recording time; matched on a path-shape (member id wildcarded) rather than the literal src so the same locator works for any member id, with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
+        }
+      },
+      "timeoutMs": 8000,
+      "kind": "extract",
+      "locator": {
+        "candidates": [
+          {
+            "strategy": "text",
+            "text": "SA-1011",
+            "exact": false
+          },
+          {
+            "strategy": "css",
+            "selector": "table:nth-of-type(2) > tbody > tr > td > table:nth-of-type(2) > tbody > tr:nth-of-type(1) > td:nth-of-type(2)"
+          }
+        ],
+        "robustnessNote": "visible text match as a secondary, content-based fallback; structural CSS path -- last resort, brittle against added/removed sibling rows"
+      },
+      "outputName": "confirmationNumber",
+      "attribute": "text"
+    }
+  ],
+  "outcomes": [
+    {
+      "name": "member_not_found",
+      "description": "No member exists with the given ID.",
+      "category": "business_outcome",
+      "detector": {
+        "textPresent": "No member found with ID",
+        "frame": "main"
+      }
+    },
+    {
+      "name": "member_frozen",
+      "description": "The member account is frozen; the action is not permitted.",
+      "category": "business_outcome",
+      "detector": {
+        "textPresent": "is FROZEN",
+        "frame": "main"
+      }
+    },
+    {
+      "name": "validation_error_missing_nickname",
+      "description": "Sub-account nickname was left blank.",
+      "category": "business_outcome",
+      "detector": {
+        "textPresent": "Nickname is required.",
+        "frame": {
+          "iframeLocator": {
+            "candidates": [
+              {
+                "strategy": "css",
+                "selector": "iframe"
+              }
+            ],
+            "robustnessNote": "single iframe on page"
+          }
+        }
+      }
+    },
+    {
+      "name": "validation_error_deposit_non_positive",
+      "description": "Initial deposit was zero, negative, or not a number.",
+      "category": "business_outcome",
+      "detector": {
+        "textPresent": "Initial deposit must be a positive number.",
+        "frame": {
+          "iframeLocator": {
+            "candidates": [
+              {
+                "strategy": "css",
+                "selector": "iframe"
+              }
+            ],
+            "robustnessNote": "single iframe on page"
+          }
+        }
+      }
+    },
+    {
+      "name": "validation_error_deposit_over_limit",
+      "description": "Initial deposit exceeded the teller's $10,000 authorization limit.",
+      "category": "business_outcome",
+      "detector": {
+        "textPresent": "exceeds the $10,000 teller limit",
+        "frame": {
+          "iframeLocator": {
+            "candidates": [
+              {
+                "strategy": "css",
+                "selector": "iframe"
+              }
+            ],
+            "robustnessNote": "single iframe on page"
+          }
+        }
+      }
+    },
+    {
+      "name": "session_expired",
+      "description": "The application forced re-authentication mid-flow.",
+      "category": "recoverable",
+      "detector": {
+        "textPresent": "Your session has expired",
+        "frame": {
+          "iframeLocator": {
+            "candidates": [
+              {
+                "strategy": "css",
+                "selector": "iframe"
+              }
+            ],
+            "robustnessNote": "single iframe on page"
+          }
+        }
+      },
+      "recovery": {
+        "action": "click",
+        "locator": {
+          "candidates": [
+            {
+              "strategy": "role",
+              "role": "button",
+              "name": "Re-authenticate"
+            },
+            {
+              "strategy": "css",
+              "selector": "input[type=submit]"
+            }
+          ],
+          "robustnessNote": "Re-authenticate is a submit button whose accessible name equals its value attribute."
+        }
+      }
+    }
+  ],
+  "successCheckpoint": {
+    "description": "Confirmation page reached with a confirmation number.",
+    "detector": {
+      "urlPattern": "/members/*/sub-accounts/*/confirmation",
+      "textPresent": "Sub-account opened successfully.",
+      "frame": {
+        "iframeLocator": {
+          "candidates": [
+            {
+              "strategy": "css",
+              "selector": "iframe"
+            }
+          ],
+          "robustnessNote": "single iframe on page"
+        }
+      }
+    }
+  }
+}
