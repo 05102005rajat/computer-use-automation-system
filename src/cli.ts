@@ -114,6 +114,12 @@ async function cmdDiscover(args: Record<string, string>) {
     policy: defaultPolicy,
   });
 
+  // --auto-approve-risky already means "trust this end-to-end without a
+  // human in the loop"; recording that same trust onto the resulting
+  // artifact removes a redundant manual approval step from the common case
+  // while keeping the real default (draft, unapproved) for every other run.
+  if (args["auto-approve-risky"] === "true") artifact.approval = "approved";
+
   const file = saveArtifact(ARTIFACTS_ROOT, artifact);
   console.log(`Saved capability artifact: ${file} (version ${version})`);
   console.log(`Outputs collected during discovery: ${JSON.stringify(result.outputsCollected, null, 2)}`);

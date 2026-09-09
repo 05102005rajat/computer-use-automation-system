@@ -1,0 +1,5 @@
+{
+  "status": "business_outcome",
+  "outcome": "validation_error_deposit_over_limit",
+  "description": "Initial deposit exceeded the teller's $10,000 authorization limit."
+}

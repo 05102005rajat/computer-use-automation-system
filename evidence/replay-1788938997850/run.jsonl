@@ -1,0 +1,9 @@
+{"ts":"2026-09-09T07:29:57.850Z","type":"run_started","data":{"runId":"replay-1788938997850","artifactFile":"artifacts/open_sub_account.v1.json","params":{"memberId":"10099","subAccountType":"share","nickname":"Test","depositAmount":"25","username":"teller","password":"[REDACTED]"}}}
+{"ts":"2026-09-09T07:29:58.728Z","type":"replay_step_start","data":{"stepId":"step-0","kind":"navigate","description":"Enter application"}}
+{"ts":"2026-09-09T07:29:59.290Z","type":"replay_step_start","data":{"stepId":"step-1","kind":"type","description":"Type into \"Username\""}}
+{"ts":"2026-09-09T07:29:59.370Z","type":"replay_step_start","data":{"stepId":"step-2","kind":"type","description":"Type into \"Password\""}}
+{"ts":"2026-09-09T07:29:59.407Z","type":"replay_step_start","data":{"stepId":"step-3","kind":"click","description":"Click \"Sign In\""}}
+{"ts":"2026-09-09T07:29:59.980Z","type":"replay_step_start","data":{"stepId":"step-4","kind":"type","description":"Type into \"Member ID\""}}
+{"ts":"2026-09-09T07:29:59.996Z","type":"replay_step_start","data":{"stepId":"step-5","kind":"click","description":"Click \"Look Up Member\""}}
+{"ts":"2026-09-09T07:30:00.566Z","type":"replay_step_start","data":{"stepId":"step-6","kind":"extract","description":"Extract \"savingsBalance\" from \"$4382.10\""}}
+{"ts":"2026-09-09T07:30:08.598Z","type":"replay_business_outcome","data":{"outcome":"member_frozen","stepId":"step-6"}}

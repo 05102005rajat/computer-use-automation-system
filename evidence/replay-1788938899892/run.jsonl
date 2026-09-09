@@ -1,0 +1,14 @@
+{"ts":"2026-09-09T07:28:19.892Z","type":"run_started","data":{"runId":"replay-1788938899892","artifactFile":"artifacts/open_sub_account.v1.json","params":{"memberId":"40040","subAccountType":"money_market","nickname":"Retirement Boost","depositAmount":"200","username":"teller","password":"[REDACTED]"}}}
+{"ts":"2026-09-09T07:28:20.605Z","type":"replay_step_start","data":{"stepId":"step-0","kind":"navigate","description":"Enter application"}}
+{"ts":"2026-09-09T07:28:21.143Z","type":"replay_step_start","data":{"stepId":"step-1","kind":"type","description":"Type into \"Username\""}}
+{"ts":"2026-09-09T07:28:21.254Z","type":"replay_step_start","data":{"stepId":"step-2","kind":"type","description":"Type into \"Password\""}}
+{"ts":"2026-09-09T07:28:21.298Z","type":"replay_step_start","data":{"stepId":"step-3","kind":"click","description":"Click \"Sign In\""}}
+{"ts":"2026-09-09T07:28:21.881Z","type":"replay_step_start","data":{"stepId":"step-4","kind":"type","description":"Type into \"Member ID\""}}
+{"ts":"2026-09-09T07:28:21.905Z","type":"replay_step_start","data":{"stepId":"step-5","kind":"click","description":"Click \"Look Up Member\""}}
+{"ts":"2026-09-09T07:28:22.464Z","type":"replay_step_start","data":{"stepId":"step-6","kind":"extract","description":"Extract \"savingsBalance\" from \"$4382.10\""}}
+{"ts":"2026-09-09T07:28:26.484Z","type":"replay_step_start","data":{"stepId":"step-7","kind":"select","description":"Select \"Share Savings\" in \"Account Type\""}}
+{"ts":"2026-09-09T07:28:38.592Z","type":"replay_recoverable_condition","data":{"outcome":"session_expired","stepId":"step-7"}}
+{"ts":"2026-09-09T07:28:45.887Z","type":"replay_step_start","data":{"stepId":"step-8","kind":"type","description":"Type into \"Nickname\""}}
+{"ts":"2026-09-09T07:28:49.972Z","type":"replay_step_start","data":{"stepId":"step-9","kind":"type","description":"Type into \"Initial Deposit\""}}
+{"ts":"2026-09-09T07:28:54.230Z","type":"replay_step_start","data":{"stepId":"step-10","kind":"click","description":"Click \"Open Sub-Account\""}}
+{"ts":"2026-09-09T07:28:58.920Z","type":"replay_step_start","data":{"stepId":"step-11","kind":"extract","description":"Extract \"confirmationNumber\" from \"SA-1001\""}}

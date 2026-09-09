@@ -1,6 +1,6 @@
 import { chromium, type Page, type Frame } from "playwright";
 import type { CapabilityArtifact, BusinessOutcome, Checkpoint, ValueRef } from "../artifact/schema.js";
-import { resolveFrame, resolveLocator, LocatorResolutionError, clickAndSettle } from "./locator.js";
+import { resolveFrame, resolveLocator, LocatorResolutionError, performLocatorAction } from "./locator.js";
 import { matchesUrlPattern, type ReplayResult } from "./errors.js";
 import { assertActionTypeAllowed, assertNavigationAllowed, deadlineFor, isPastDeadline, type Policy, PolicyViolationError } from "../guardrails/policy.js";
 import type { RunLogger } from "../evidence/logger.js";
@@ -20,11 +20,15 @@ function isActionable(step: CapabilityArtifact["steps"][number]): step is Action
   return step.kind !== "navigate";
 }
 
-/** Performs one already-resolved click/type/select/extract action. Shared by
- * the main execution path and the recoverable-condition retry path so both
- * handle every step kind identically -- an extract step retried after a
- * recovery used to fall through unhandled and silently skip writing its
- * output, purely because the two call sites had drifted apart. */
+/** Turns one artifact step into the generic `LocatorAction` shape and hands
+ * it to `performLocatorAction` -- the actual click/type/select/extract
+ * dispatch lives in exactly one place (`replay/locator.ts`), shared with the
+ * discovery agent loop. This function's own job is just translating a
+ * step's `ValueRef` into a concrete string and, for extract, writing the
+ * result into `outputs`. Used by both the main execution path and the
+ * recoverable-condition retry path, so an extract step retried after a
+ * recovery can no longer fall through unhandled the way it once did when
+ * the two call sites had drifted apart. */
 async function performAction(
   step: ActionableStep,
   scope: Page | Frame,
@@ -33,14 +37,14 @@ async function performAction(
   outputs: Record<string, string>
 ): Promise<void> {
   if (step.kind === "click") {
-    await clickAndSettle(scope, locator, step.timeoutMs);
+    await performLocatorAction(scope, locator, { kind: "click" }, step.timeoutMs);
   } else if (step.kind === "type") {
-    await locator.fill(resolveValue(step.value, params), { timeout: step.timeoutMs });
+    await performLocatorAction(scope, locator, { kind: "type", value: resolveValue(step.value, params) }, step.timeoutMs);
   } else if (step.kind === "select") {
-    await locator.selectOption(resolveValue(step.value, params), { timeout: step.timeoutMs });
+    await performLocatorAction(scope, locator, { kind: "select", value: resolveValue(step.value, params) }, step.timeoutMs);
   } else if (step.kind === "extract") {
-    const raw = step.attribute === "value" ? await locator.inputValue() : await locator.textContent();
-    outputs[step.outputName] = (raw ?? "").trim();
+    const text = await performLocatorAction(scope, locator, { kind: "extract", attribute: step.attribute }, step.timeoutMs);
+    outputs[step.outputName] = text ?? "";
   }
   // "wait_for" has nothing left to do: resolveLocator already waited for visibility.
 }
@@ -287,6 +291,6 @@ async function applyRecovery(
     // top-level page (ours renders inside the same <iframe> as the form).
     const scope = await resolveFrame(page, outcome.detector.frame, timeoutMs);
     const { locator } = await resolveLocator(scope, outcome.recovery.locator, timeoutMs);
-    await clickAndSettle(scope, locator, timeoutMs);
+    await performLocatorAction(scope, locator, { kind: "click" }, timeoutMs);
   }
 }

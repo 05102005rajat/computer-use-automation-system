@@ -77,6 +77,40 @@ export async function clickAndSettle(scope: Page | Frame, locator: Locator, time
   await navigation;
 }
 
+export type LocatorAction =
+  | { kind: "click" }
+  | { kind: "type"; value: string }
+  | { kind: "select"; value: string }
+  | { kind: "extract"; attribute?: "text" | "value" };
+
+/** Performs one action against an already-resolved element. This is the
+ * single place that knows how to turn "click/type/select/extract" into
+ * actual Playwright calls -- shared by the discovery agent loop and the
+ * replay executor, which would otherwise (and briefly did) reimplement the
+ * same four branches twice and let them drift out of sync. Returns the
+ * extracted string for `extract`, `undefined` for every other kind. */
+export async function performLocatorAction(
+  scope: Page | Frame,
+  locator: Locator,
+  action: LocatorAction,
+  timeoutMs: number
+): Promise<string | undefined> {
+  if (action.kind === "click") {
+    await clickAndSettle(scope, locator, timeoutMs);
+    return undefined;
+  }
+  if (action.kind === "type") {
+    await locator.fill(action.value, { timeout: timeoutMs });
+    return undefined;
+  }
+  if (action.kind === "select") {
+    await locator.selectOption(action.value, { timeout: timeoutMs });
+    return undefined;
+  }
+  const raw = action.attribute === "value" ? await locator.inputValue() : await locator.textContent();
+  return (raw ?? "").trim();
+}
+
 export async function resolveFrame(page: Page, ref: FrameRef, timeoutMs: number): Promise<Page | Frame> {
   if (ref === "main") return page;
   const { locator } = await resolveLocator(page, ref.iframeLocator, timeoutMs);

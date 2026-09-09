@@ -21,9 +21,10 @@ at this size. Five modules with a deliberate seam between them:
   successful transcript into a versioned `CapabilityArtifact`. The recorder is not an LLM step;
   it is a pure transform, so every field in the artifact traces back to one concrete action the
   agent actually performed.
-- **`replay/`** — the deterministic executor. Same locator-resolution and frame-handling code as
-  discovery-time execution (shared via `replay/locator.ts`), so "how we act on a step" is
-  identical whether a human-in-the-loop LLM or a saved artifact is driving.
+- **`replay/`** — the deterministic executor. Locator resolution, frame handling, and the actual
+  click/type/select/extract dispatch (`performLocatorAction`) are all shared with discovery via
+  `replay/locator.ts`, so "how we act on a step" is one implementation, not two that can drift —
+  which is exactly what caused the double-execution bug in §7.
 - **`guardrails/`** — allowlist, risk classification, redaction. Consulted by *both* the
   discovery loop and the replay executor, not just one.
 - **`escalation/`** — an in-memory session registry plus a small HTTP operator API, shared by
@@ -100,9 +101,10 @@ exactly why the brief insists the discovery run has to be real.
 
 **Secondarily, UI drift:** the fallback chain (role/name → attribute → text → CSS path) is the
 primary drift defense — a renamed CSS class or an added table row doesn't break a step whose
-first candidate is `role=button, name="Open Sub-Account"`. `evidence/replay-1788930527588`
-demonstrates the case where drift breaks *every* candidate: replay finds no declared outcome
-matches either, and escalates with full context rather than guessing.
+first candidate is `role=button, name="Open Sub-Account"`. The drift-demo run in
+`evidence/INDEX.md` (Supplementary) demonstrates the case where drift breaks *every* candidate:
+replay finds no declared outcome matches either, and escalates with full context rather than
+guessing.
 
 ## 4. Heterogeneity & multi-tenant
 
@@ -171,7 +173,10 @@ map — fine at this scale, not the place to add infrastructure prematurely).
   re-evaluated from a description string at replay time (which would let classification drift
   independently of the policy that produced it). An unattended replay of a risky step requires
   explicit authorization unless the artifact carries `approval: "approved"` — a human reviewer
-  action (`cli.ts approve`), not an automatic transition.
+  action (`cli.ts approve`/`unapprove`), not an automatic transition. The one exception is
+  `discover --auto-approve-risky`: since that flag already means "trust this end-to-end without
+  a human in the loop" for the discovery run itself, it marks the resulting artifact approved too
+  rather than requiring a redundant second sign-off before the first replay.
 - **Redaction**: credentials are declared as ordinary parameters (`username`/`password`, injected
   from environment at replay time, never accepted as an agent-supplied invocation argument — see
   `config.ts`), which means the recorder resolves them to `{kind: "param", name: "password"}`
@@ -201,18 +206,10 @@ map — fine at this scale, not the place to add infrastructure prematurely).
   is truly capability-agnostic vs. accidentally shaped by this one flow), the base-artifact +
   override mechanism for multi-tenant reuse, and multi-run stability scoring before gating
   anything on `approval: "approved"` automatically rather than by human action.
-- **A `/code-review` pass caught a real double-execution bug** in the risky-action escalation
-  gate: it only checked for `resolution === "rejected"`, so an operator who authorized a risky
-  step by performing it themselves through the operator API (rather than just approving it) had
-  automation perform the same click a second time. Also caught: a `request_help` tool call
-  leaving its `tool_use` block unresolved (would have crashed the next API call), an unvalidated
-  `resolution` string on the operator API, a guardrail violation being routed into human
-  escalation instead of a hard refusal, `approve`/`unapprove` bypassing schema validation and
-  redaction on write, an `extract` step silently skipped during recoverable-condition retries,
-  and the declared step/timeout limits never being enforced. All eight are fixed; see
-  `evidence/INDEX.md` for the regression run. A follow-up `/simplify` pass then deduplicated the
-  deadline/step-limit checks and the resolution-enum declaration across files. Re-reading the
-  brief itself (not just the code) afterward found two more real gaps: the allowlist was
-  origin-only despite the brief asking for "domains/routes" (fixed with `allowedRoutePatterns`),
-  and action logging captured *what* the agent did but not *why* (fixed by making `reasoning` a
-  required field on every action tool — see §1).
+- **Process notes, briefly:** a `/code-review` pass found and fixed 8 issues (most notably a
+  double-execution bug in the risky-action escalation gate — an operator who authorized a step by
+  performing it themselves had it performed a second time by automation), a `/simplify` pass
+  deduplicated logic that pass's fixes had scattered across files, and a direct re-read of the
+  brief (not just the code) found two more real gaps — origin-only allowlisting where the brief
+  asks for "domains/routes," and action logs that captured *what* the agent did but not *why*.
+  Full list and regression evidence: `evidence/INDEX.md`.

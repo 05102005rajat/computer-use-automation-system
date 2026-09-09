@@ -7,34 +7,21 @@ deterministically**, with no model in the loop, distinguishing business outcomes
 recoverable conditions from hard failures; and a real human-escalation/handoff mechanism lets
 an operator take over the *same live session* and hand control back.
 
+```
+ goal ──▶ discover (LLM + live app) ──▶ capability artifact ──▶ replay (no LLM)
+                                                                     │
+                                                          stuck / risky action?
+                                                                     ▼
+                                                     escalate ──▶ human acts on the
+                                                                  same live session ──▶ resume
+```
+
 See `/REPORT.md` for the design write-up (architecture, artifact schema, determinism/error
-handling, heterogeneity & multi-tenant story, escalation model, safety model, cuts).
-
-## What's here
-
-- **Target application** (`src/target-app`): a mock "Meridian Credit Union" teller console --
-  server-rendered HTML, table-based layout, no test IDs, one `<iframe>` (deliberately, to force
-  frame-aware perception/locating). This stands in for the real thing per the assignment's
-  ground rules (no real bank system, no real credentials/PII).
-- **Discovery agent** (`src/agent`): an observe -> decide -> act loop driven by Claude
-  (`claude-sonnet-4-5`), perceiving the page via a runtime-derived accessibility-style snapshot
-  (role, accessible name, visible text) rather than a fixed DOM -- built to survive a surface
-  with no clean DOM or test IDs.
-- **Capability artifact** (`src/artifact`): a versioned, zod-validated schema for the recorded
-  flow -- steps, locator fallback chains with robustness reasoning, typed inputs/outputs, a
-  success checkpoint, and a declared outcome taxonomy.
-- **Replay executor** (`src/replay`): deterministic, no-LLM execution of a saved artifact, with
-  a real error taxonomy (business outcome / recoverable / hard failure) and stable locator
-  resolution with fallbacks.
-- **Guardrails** (`src/guardrails`): an explicit allowlist, risk classification (computed once
-  at record time, not re-derived from text at replay time), and redaction of sensitive data from
-  every log and artifact.
-- **Escalation & handoff** (`src/escalation`): a session manager that lets automation pause,
-  cede control of the *live* Playwright session, and resume, plus a minimal (but real) HTTP
-  operator API and console.
-- **Evidence** (`/evidence`): real logs + screenshots from an actual discovery run and several
-  replay runs, including error/business-outcome cases and two escalation demos. See
-  `evidence/INDEX.md`.
+handling, heterogeneity & multi-tenant story, escalation model, safety model, cuts). One thing
+worth reading there up front: `REPORT.md` §3 documents a real bug the live discovery run
+surfaced (an iframe-navigation race that made a working click look like a silent no-op) — proof
+the discovery run in `/evidence` actually happened against a live app, not just a description of
+one.
 
 ## Setup
 
@@ -56,81 +43,101 @@ cp .env.example .env   # then fill in ANTHROPIC_API_KEY
 | `OPERATOR_PORT` | 4200 | the operator HTTP API (started automatically by `discover`/`replay`) |
 | `TARGET_APP_USERNAME` / `TARGET_APP_PASSWORD` | `teller` / `teller123` | mock app login, injected at replay time, never accepted as an agent-supplied parameter |
 
-## Demo path
+## Quick demo (3 commands)
 
-1. Start the target app in one terminal:
+```bash
+npm run target-app                                                              # terminal 1
 
-   ```bash
-   npm run target-app
-   ```
+npm run discover -- --member 10023 --type share --nickname "Holiday Fund" \
+  --deposit 50 --auto-approve-risky true                                        # terminal 2
 
-2. In another terminal, run the agent on a goal (a **real** LLM-driven run against the live
-   app above -- this is the part that has to be genuine, per the assignment):
+npm run replay -- --member 40040 --type money_market --nickname "Retirement Boost" --deposit 200
+```
 
-   ```bash
-   npm run discover -- --member 10023 --type share --nickname "Holiday Fund" --deposit 50 --auto-approve-risky true
-   ```
+That's the full vertical slice: a **real, live Claude-driven run** against the app started in
+terminal 1 (logs in, looks up member `10023`, reads the savings balance, opens a sub-account,
+extracts the confirmation number, saves `artifacts/open_sub_account.v1.json`), then a
+**deterministic replay** of the exact same capability with no LLM involved, against a different
+member. Member `40040` also exercises the *recoverable* condition path for free: the mock app
+forces a one-time "session expired" interstitial, which replay detects and clears automatically
+before continuing (see `run.jsonl`'s `replay_recoverable_condition` event).
 
-   This logs into the mock console, looks up member `10023`, reads their savings balance,
-   opens a new sub-account, and reaches the confirmation screen -- then saves
-   `artifacts/open_sub_account.v1.json`.
+`--auto-approve-risky` does two things: it skips the interactive risk-confirmation gate on the
+(correctly risk-classified) "Open Sub-Account" click during discovery, and marks the resulting
+artifact `approved` so the replay above doesn't need a separate sign-off step. Omit it during
+`discover` to see that gate for real instead — see "Escalation demo" below for exactly that flow.
 
-   `--auto-approve-risky` skips the interactive risk-confirmation gate on the (correctly
-   risk-classified) "Open Sub-Account" click, so the discovery run completes end-to-end
-   unattended. Omit it to see that gate for real -- the run will pause and wait for an operator
-   to resolve `POST http://localhost:4200/interventions/:id/resume` (see below).
+**See it hit real error paths, not just the happy path:**
 
-3. A human reviewer approves the artifact for unattended production replay:
+```bash
+npm run replay -- --member 99999 --type share --nickname "Test" --deposit 25
+# -> {"status":"business_outcome","outcome":"member_not_found", ...}   -- not a crash
 
-   ```bash
-   npm run build >/dev/null 2>&1 || true   # optional; tsx runs .ts directly
-   npx tsx src/cli.ts approve
-   ```
+npm run replay -- --member 10023 --type share --nickname "Too Much" --deposit 15000
+# -> {"status":"business_outcome","outcome":"validation_error_deposit_over_limit", ...}
+```
 
-4. Replay the recorded capability -- **no LLM involved** -- with fresh parameters:
+**See the escalation/handoff mechanism for real** — pause, a human acts on the *live* session
+over plain HTTP, resume:
 
-   ```bash
-   npm run replay -- --member 40040 --type money_market --nickname "Retirement Boost" --deposit 200
-   ```
+```bash
+npx tsx src/cli.ts unapprove   # artifact is approved by the quick demo above; revert it
+npm run replay -- --member 10023 --type christmas_club --nickname "Escalation Demo" --deposit 60 &
 
-   Member `40040` also exercises the *recoverable* condition path: the mock app forces a
-   one-time "session expired" interstitial the first time this flow runs in a session, and
-   replay detects and clears it automatically before continuing.
+curl -s http://localhost:4200/interventions                  # pending intervention + reason
+curl -s http://localhost:4200/interventions/intervention-1    # live snapshot + screenshot path
+curl -s -X POST http://localhost:4200/interventions/intervention-1/resume \
+  -H "Content-Type: application/json" -d '{"resolution":"approved"}'
+```
 
-5. See a business outcome (not a crash) reported cleanly:
+The backgrounded replay resumes on the same page and completes. `evidence/INDEX.md`'s "Start
+here" table points at the exact captured run for each of the above, plus a second, richer
+escalation demo (a human manually filling a *drifted* field via the operator API, not just
+approving) under "Supplementary."
 
-   ```bash
-   npm run replay -- --member 99999 --type share --nickname "Test" --deposit 25
-   # -> {"status":"business_outcome","outcome":"member_not_found", ...}
+## Optional / stretch
 
-   npm run replay -- --member 10099 --type share --nickname "Test" --deposit 25
-   # -> {"status":"business_outcome","outcome":"member_frozen", ...}
-   ```
+Everything above is what the brief asks for. These are extra, cheaper to build than to skip
+silently:
 
-6. See the escalation/handoff mechanism for real. Revert approval, start a replay in the
-   background, then act as the operator over plain HTTP against the *same live session*:
+```bash
+# Agent-facing capability catalog (stretch goal): discover and invoke by name + typed args
+npx tsx src/cli.ts catalog
+npx tsx src/cli.ts catalog invoke open_sub_account \
+  '{"memberId":"10023","subAccountType":"share","nickname":"Catalog Invoke Demo","depositAmount":90}'
 
-   ```bash
-   npx tsx src/cli.ts unapprove
-   npm run replay -- --member 10023 --type christmas_club --nickname "Escalation Demo" --deposit 60 &
+# Human review workflow the escalation demo above exercises directly
+npx tsx src/cli.ts approve      # draft -> approved
+npx tsx src/cli.ts unapprove    # approved -> draft
+```
 
-   curl -s http://localhost:4200/interventions            # see the pending intervention + reason
-   curl -s http://localhost:4200/interventions/intervention-1   # live snapshot + screenshot path
-   curl -s -X POST http://localhost:4200/interventions/intervention-1/resume \
-     -H "Content-Type: application/json" -d '{"resolution":"approved"}'
-   ```
+## What's here
 
-   The backgrounded replay resumes on the same page and completes. A second, richer escalation
-   demo (a human manually filling a drifted field via the operator API, not just approving) is
-   in `evidence/replay-1788937773593` -- see `evidence/INDEX.md` for exactly how it was driven.
-
-7. (Stretch) List and invoke capabilities the way an AI agent would -- by name, with typed args:
-
-   ```bash
-   npx tsx src/cli.ts catalog
-   npx tsx src/cli.ts catalog invoke open_sub_account \
-     '{"memberId":"10023","subAccountType":"share","nickname":"Catalog Invoke Demo","depositAmount":90}'
-   ```
+- **Target application** (`src/target-app`): a mock "Meridian Credit Union" teller console --
+  server-rendered HTML, table-based layout, no test IDs, one `<iframe>` (deliberately, to force
+  frame-aware perception/locating). This stands in for the real thing per the assignment's
+  ground rules (no real bank system, no real credentials/PII).
+- **Discovery agent** (`src/agent`): an observe -> decide -> act loop driven by Claude
+  (`claude-sonnet-4-5`), perceiving the page via a runtime-derived accessibility-style snapshot
+  (role, accessible name, visible text) rather than a fixed DOM -- built to survive a surface
+  with no clean DOM or test IDs.
+- **Capability artifact** (`src/artifact`): a versioned, zod-validated schema for the recorded
+  flow -- steps, locator fallback chains with robustness reasoning, typed inputs/outputs, a
+  success checkpoint, and a declared outcome taxonomy.
+- **Replay executor** (`src/replay`): deterministic, no-LLM execution of a saved artifact, with
+  a real error taxonomy (business outcome / recoverable / hard failure) and stable locator
+  resolution with fallbacks. The actual click/type/select/extract dispatch (`replay/locator.ts`'s
+  `performLocatorAction`) is shared with the discovery agent loop -- one implementation, not two
+  that can drift apart.
+- **Guardrails** (`src/guardrails`): an origin *and* route allowlist, risk classification
+  (computed once at record time, not re-derived from text at replay time), and redaction of
+  sensitive data from every log and artifact.
+- **Escalation & handoff** (`src/escalation`): a session manager that lets automation pause,
+  cede control of the *live* Playwright session, and resume, plus a minimal (but real) HTTP
+  operator API and console.
+- **Evidence** (`/evidence`): real logs + screenshots from an actual discovery run and several
+  replay runs, including error/business-outcome cases and two escalation demos. See
+  `evidence/INDEX.md` -- "Start here" for the essential four, "Supplementary" for the rest.
 
 ## Running without live services
 
@@ -146,6 +153,6 @@ npm test        # node's built-in test runner, no extra framework
 npm run typecheck
 ```
 
-Tests cover the locator fallback ordering/robustness logic, the URL-pattern matcher used by
-outcome/checkpoint detection, and the redaction utilities -- the parts where a silent regression
-would be hardest to notice by just eyeballing a passing demo run.
+Tests cover the locator fallback ordering/robustness logic, the route-allowlist and URL-pattern
+matcher used by outcome/checkpoint detection, and the redaction utilities -- the parts where a
+silent regression would be hardest to notice by just eyeballing a passing demo run.

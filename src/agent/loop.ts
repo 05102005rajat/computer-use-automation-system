@@ -16,7 +16,7 @@ import {
 import type { RunLogger } from "../evidence/logger.js";
 import { registerSession, unregisterSession } from "../escalation/session-manager.js";
 import { escalate } from "../escalation/escalate.js";
-import { resolveFrame, resolveLocator, clickAndSettle } from "../replay/locator.js";
+import { resolveFrame, resolveLocator, performLocatorAction } from "../replay/locator.js";
 
 export type DiscoveryStep =
   | { kind: "navigate"; index: number; url: string; description: string }
@@ -204,12 +204,12 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
 
           if (toolUse.name === "click") {
             assertActionTypeAllowed(policy, "click");
-            await clickAndSettle(scope, locator, 5000);
+            await performLocatorAction(scope, locator, { kind: "click" }, 5000);
             transcript.push({ kind: "click", index: stepIndex++, frame: el.frame, element: el, description: `Click "${el.accessibleName}"` });
             history.push(`click(${input.refId} "${el.accessibleName}")`);
           } else if (toolUse.name === "type") {
             assertActionTypeAllowed(policy, "type");
-            await locator.fill(input.text);
+            await performLocatorAction(scope, locator, { kind: "type", value: input.text }, 5000);
             transcript.push({
               kind: "type",
               index: stepIndex++,
@@ -221,7 +221,7 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
             history.push(`type(${input.refId} "${el.accessibleName}" = ${paramValueFor(opts.params, input.text) ? "<param>" : input.text})`);
           } else if (toolUse.name === "select") {
             assertActionTypeAllowed(policy, "select");
-            await locator.selectOption(input.value);
+            await performLocatorAction(scope, locator, { kind: "select", value: input.value }, 5000);
             transcript.push({
               kind: "select",
               index: stepIndex++,
@@ -233,8 +233,8 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
             history.push(`select(${input.refId} = ${input.value})`);
           } else if (toolUse.name === "extract") {
             assertActionTypeAllowed(policy, "extract");
-            const text = (await locator.textContent()) ?? "";
-            outputsCollected[input.outputName] = text.trim();
+            const text = (await performLocatorAction(scope, locator, { kind: "extract", attribute: input.attribute }, 5000)) ?? "";
+            outputsCollected[input.outputName] = text;
             transcript.push({
               kind: "extract",
               index: stepIndex++,
@@ -243,7 +243,7 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
               outputName: input.outputName,
               description: `Extract "${input.outputName}" from "${el.accessibleName}"`,
             });
-            history.push(`extract(${input.refId} -> ${input.outputName} = "${text.trim()}")`);
+            history.push(`extract(${input.refId} -> ${input.outputName} = "${text}")`);
           }
         }
       } catch (err) {
