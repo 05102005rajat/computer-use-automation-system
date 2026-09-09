@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import {
+  assertHumanControl,
   getPage,
   getPending,
   listPending,
@@ -10,7 +11,8 @@ import {
 } from "./session-manager.js";
 import { takeSnapshot, findElement } from "../agent/perception.js";
 import { buildLocatorSpec } from "../agent/build-locator.js";
-import { resolveLocator, resolveFrame } from "../replay/locator.js";
+import { resolveLocator, resolveFrame, performLocatorAction } from "../replay/locator.js";
+import { assertActionTypeAllowed, assertNavigationAllowed, defaultPolicy } from "../guardrails/policy.js";
 
 // A deliberately minimal operator surface (per the brief's scope note: a full
 // co-browsing console is out of scope). What matters is that it acts on the
@@ -57,9 +59,25 @@ export function createOperatorServer() {
       const scope = await resolveFrame(page, el.frame, 5000);
       const { locator } = await resolveLocator(scope, spec, 5000);
 
-      if (type === "click") await locator.click();
-      else if (type === "type") await locator.fill(value ?? "");
-      else if (type === "select") await locator.selectOption(value ?? "");
+      // Checked as late as possible, immediately before the mutation --
+      // checking only afterward (as this used to) would still let a stale
+      // or duplicate request act on a session automation has since resumed.
+      assertHumanControl(pending.runId);
+      assertActionTypeAllowed(defaultPolicy, type);
+
+      // The same click/type/select dispatch discovery and replay use --
+      // not a raw locator.click(), which doesn't reliably wait for a
+      // same-origin iframe's own navigation in this app (see
+      // replay/locator.ts's clickAndSettle doc comment; a manual operator
+      // click on the sub-account form hit exactly this before).
+      if (type === "click") {
+        await performLocatorAction(scope, locator, { kind: "click" }, 5000);
+        assertNavigationAllowed(defaultPolicy, scope.url());
+      } else if (type === "type") {
+        await performLocatorAction(scope, locator, { kind: "type", value: value ?? "" }, 5000);
+      } else if (type === "select") {
+        await performLocatorAction(scope, locator, { kind: "select", value: value ?? "" }, 5000);
+      }
 
       await performHumanAction(pending.runId, { type, refId, value });
       res.json({ ok: true });

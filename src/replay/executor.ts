@@ -8,10 +8,24 @@ import type { RunLogger } from "../evidence/logger.js";
 import { registerSession, unregisterSession } from "../escalation/session-manager.js";
 import { escalate } from "../escalation/escalate.js";
 
+// A step can reference a param (e.g. "username"/"password") that isn't part
+// of the artifact's public `inputs` contract -- credentials are deliberately
+// excluded from what a calling agent supplies (see REPORT.md, Safety). That
+// means the up-front "Typed input validation" loop below can't check them,
+// so a caller missing one fails deep inside step execution instead; this
+// dedicated error type lets that still be reported as `input_validation`
+// rather than falling through to an unclassified hard failure.
+class MissingParamError extends Error {
+  constructor(paramName: string) {
+    super(`Missing required input parameter: ${paramName}`);
+    this.name = "MissingParamError";
+  }
+}
+
 function resolveValue(ref: ValueRef, params: Record<string, string>): string {
   if (ref.kind === "literal") return ref.value;
   const v = params[ref.name];
-  if (v === undefined) throw new Error(`Missing required input parameter: ${ref.name}`);
+  if (v === undefined) throw new MissingParamError(ref.name);
   return v;
 }
 
@@ -35,10 +49,17 @@ async function performAction(
   scope: Page | Frame,
   locator: import("playwright").Locator,
   params: Record<string, string>,
-  outputs: Record<string, string>
+  outputs: Record<string, string>,
+  policy: Policy
 ): Promise<void> {
   if (step.kind === "click") {
     await performLocatorAction(scope, locator, { kind: "click" }, step.timeoutMs);
+    // The route allowlist previously only guarded explicit `navigate` steps,
+    // but in this fully server-rendered app a click is the dominant way the
+    // page actually navigates (see clickAndSettle's doc comment) -- so this
+    // is the check that actually stops the agent wandering into an
+    // unreviewed route, not the one on `navigate` alone.
+    assertNavigationAllowed(policy, scope.url());
   } else if (step.kind === "type") {
     await performLocatorAction(scope, locator, { kind: "type", value: resolveValue(step.value, params) }, step.timeoutMs);
   } else if (step.kind === "select") {
@@ -164,15 +185,15 @@ export async function replayArtifact(opts: ReplayOptions): Promise<ReplayResult>
         assertActionTypeAllowed(policy, step.kind as any);
         const scope = await resolveFrame(page, step.frame, step.timeoutMs);
         const { locator } = await resolveLocator(scope, step.locator, step.timeoutMs);
-        await performAction(step, scope, locator, params, outputs);
+        await performAction(step, scope, locator, params, outputs, policy);
       } catch (err) {
-        // A guardrail violation is a hard refusal, never a "let's ask a
-        // human to look at this" situation -- rethrow so it reaches the
-        // single policy_violation response shape in the outer catch below,
-        // instead of routing into the outcome-matching/escalation path (which
-        // would let a live page that just violated policy sit open waiting
-        // on an operator instead of being shut down immediately).
-        if (err instanceof PolicyViolationError) throw err;
+        // A guardrail violation or a missing required param is a hard
+        // refusal, never a "let's ask a human to look at this" situation --
+        // rethrow so each reaches its own single response shape in the
+        // outer catch below, instead of routing into the outcome-matching/
+        // escalation path (which for a policy violation would leave a live
+        // page that just broke policy sitting open waiting on an operator).
+        if (err instanceof PolicyViolationError || err instanceof MissingParamError) throw err;
 
         // A locator failed to resolve, or an action timed out. Before
         // declaring a hard failure, check whether the app landed on a
@@ -193,7 +214,7 @@ export async function replayArtifact(opts: ReplayOptions): Promise<ReplayResult>
           try {
             const scope = await resolveFrame(page, step.frame, step.timeoutMs);
             const { locator } = await resolveLocator(scope, step.locator, step.timeoutMs);
-            await performAction(step, scope, locator, params, outputs);
+            await performAction(step, scope, locator, params, outputs, policy);
             continue;
           } catch (retryErr) {
             const evidencePath = await logger.screenshot(page, `hard-failure-${step.id}`);
@@ -262,6 +283,9 @@ export async function replayArtifact(opts: ReplayOptions): Promise<ReplayResult>
     if (err instanceof PolicyViolationError) {
       return { status: "error", errorType: "policy_violation", step: "policy", message: err.message, evidencePath };
     }
+    if (err instanceof MissingParamError) {
+      return { status: "error", errorType: "input_validation", step: "input_validation", message: err.message, evidencePath };
+    }
     return { status: "error", errorType: "unrecognized_state", step: "unknown", message: String(err), evidencePath };
   }
 }
@@ -292,5 +316,6 @@ async function applyRecovery(
     const scope = await resolveFrame(page, outcome.detector.frame, timeoutMs);
     const { locator } = await resolveLocator(scope, outcome.recovery.locator, timeoutMs);
     await performLocatorAction(scope, locator, { kind: "click" }, timeoutMs);
+    assertNavigationAllowed(policy, scope.url());
   }
 }

@@ -180,19 +180,25 @@ async function describeIframe(page: Page, iframeIndex: number): Promise<LocatorS
     return frames[i]?.getAttribute("src") ?? "";
   }, iframeIndex);
 
-  // Strip the member id / query params: keep the stable path shape so this
-  // locator survives across different members, not just this one recording.
-  const pathShape = src.replace(/\/members\/[^/]+\//, "/members/*/");
+  // The "attribute" strategy's match is a literal CSS substring ([attr*=value]),
+  // not a wildcard/glob -- a "*" placeholder in the value would never match a
+  // real src, it'd just be a literal asterisk. So instead of embedding a fake
+  // wildcard for the member id, strip the member-id segment entirely and keep
+  // only the stable suffix that's the same for every member: a real substring
+  // that genuinely is present in any member's src, no wildcard syntax needed.
+  const stableSuffix = src.replace(/^\/members\/[^/]+/, "");
 
   return {
     candidates: [
-      { strategy: "attribute", attribute: "src", value: pathShape },
+      { strategy: "attribute", attribute: "src", value: stableSuffix },
       { strategy: "css", selector: "iframe" },
     ],
     robustnessNote:
-      "Only iframe on the page at recording time; matched on a path-shape (member id wildcarded) " +
-      "rather than the literal src so the same locator works for any member id, with a bare " +
-      "`iframe` css fallback if the app ever adds exactly one frame in a different shape.",
+      "Only iframe on the page at recording time; matched on the path suffix after the member " +
+      `id ("${stableSuffix}"), a real substring present in any member's src (the attribute ` +
+      "strategy is a literal CSS substring match, not a wildcard/glob, so the member id segment " +
+      "is dropped entirely rather than replaced with a placeholder that would never match), " +
+      "with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape.",
   };
 }
 

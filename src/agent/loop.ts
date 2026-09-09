@@ -178,6 +178,7 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
           const el = findElement(snapshot, input.refId);
           if (!el) throw new Error(`refId ${input.refId} not found in latest observation`);
 
+          let alreadyPerformedByHuman = false;
           if (toolUse.name === "click" && isRiskyAction(policy, el.accessibleName) && !opts.autoApproveRisky) {
             const resolved = await escalate(opts.runId, page, logger, {
               reason: `Risky/irreversible action requires authorization: "${el.accessibleName}"`,
@@ -196,6 +197,14 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
                 finalUrl: page.url(),
               };
             }
+            if (resolved.humanActions.length > 0) {
+              // The operator already performed this click by hand rather
+              // than merely authorizing it -- executing it again would
+              // double-submit an irreversible action. Same fix as the
+              // replay executor's risk gate.
+              alreadyPerformedByHuman = true;
+              logger.event("discovery_step_completed_by_human", { refId: input.refId });
+            }
           }
 
           const scope = await resolveFrame(page, el.frame, 5000);
@@ -203,7 +212,10 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
 
           if (toolUse.name === "click") {
             assertActionTypeAllowed(policy, "click");
-            await performLocatorAction(scope, locator, { kind: "click" }, 5000);
+            if (!alreadyPerformedByHuman) {
+              await performLocatorAction(scope, locator, { kind: "click" }, 5000);
+              assertNavigationAllowed(policy, scope.url());
+            }
             transcript.push({ kind: "click", index: stepIndex++, frame: el.frame, element: el, description: `Click "${el.accessibleName}"` });
             history.push(`click(${input.refId} "${el.accessibleName}")`);
           } else if (toolUse.name === "type") {

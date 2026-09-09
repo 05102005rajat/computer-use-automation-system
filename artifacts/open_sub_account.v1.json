@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "id": "open_sub_account-1788939802713",
+  "id": "open_sub_account-1788945029736",
   "name": "open_sub_account",
   "version": 1,
   "description": "Look up a member, read their savings balance, and open a new sub-account for them.",
-  "createdAt": "2026-09-09T07:43:22.713Z",
+  "createdAt": "2026-09-09T09:10:29.736Z",
   "discovery": {
     "sourceGoal": "Log into the teller console (username \"teller\", password \"[REDACTED]\"). Then look up member 10023, extract their current savings balance as \"savingsBalance\", then open a new \"share\" sub-account for them with nickname \"Holiday Fund\" and an initial deposit of 50. Once you reach the confirmation screen, extract the confirmation number as \"confirmationNumber\", then finish successfully.",
     "model": "claude-sonnet-4-5",
-    "transcriptRef": "evidence/discovery-1788939753680"
+    "transcriptRef": "evidence/discovery-1788944996038"
   },
   "target": {
     "vendorProduct": "meridian-teller-console",
@@ -237,14 +237,14 @@
             {
               "strategy": "attribute",
               "attribute": "src",
-              "value": "/members/*/sub-accounts/new"
+              "value": "/sub-accounts/new"
             },
             {
               "strategy": "css",
               "selector": "iframe"
             }
           ],
-          "robustnessNote": "Only iframe on the page at recording time; matched on a path-shape (member id wildcarded) rather than the literal src so the same locator works for any member id, with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
+          "robustnessNote": "Only iframe on the page at recording time; matched on the path suffix after the member id (\"/sub-accounts/new\"), a real substring present in any member's src (the attribute strategy is a literal CSS substring match, not a wildcard/glob, so the member id segment is dropped entirely rather than replaced with a placeholder that would never match), with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
         }
       },
       "timeoutMs": 8000,
@@ -282,14 +282,14 @@
             {
               "strategy": "attribute",
               "attribute": "src",
-              "value": "/members/*/sub-accounts/new"
+              "value": "/sub-accounts/new"
             },
             {
               "strategy": "css",
               "selector": "iframe"
             }
           ],
-          "robustnessNote": "Only iframe on the page at recording time; matched on a path-shape (member id wildcarded) rather than the literal src so the same locator works for any member id, with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
+          "robustnessNote": "Only iframe on the page at recording time; matched on the path suffix after the member id (\"/sub-accounts/new\"), a real substring present in any member's src (the attribute strategy is a literal CSS substring match, not a wildcard/glob, so the member id segment is dropped entirely rather than replaced with a placeholder that would never match), with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
         }
       },
       "timeoutMs": 8000,
@@ -327,14 +327,14 @@
             {
               "strategy": "attribute",
               "attribute": "src",
-              "value": "/members/*/sub-accounts/new"
+              "value": "/sub-accounts/new"
             },
             {
               "strategy": "css",
               "selector": "iframe"
             }
           ],
-          "robustnessNote": "Only iframe on the page at recording time; matched on a path-shape (member id wildcarded) rather than the literal src so the same locator works for any member id, with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
+          "robustnessNote": "Only iframe on the page at recording time; matched on the path suffix after the member id (\"/sub-accounts/new\"), a real substring present in any member's src (the attribute strategy is a literal CSS substring match, not a wildcard/glob, so the member id segment is dropped entirely rather than replaced with a placeholder that would never match), with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
         }
       },
       "timeoutMs": 8000,
@@ -372,14 +372,14 @@
             {
               "strategy": "attribute",
               "attribute": "src",
-              "value": "/members/*/sub-accounts/new"
+              "value": "/sub-accounts/new"
             },
             {
               "strategy": "css",
               "selector": "iframe"
             }
           ],
-          "robustnessNote": "Only iframe on the page at recording time; matched on a path-shape (member id wildcarded) rather than the literal src so the same locator works for any member id, with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
+          "robustnessNote": "Only iframe on the page at recording time; matched on the path suffix after the member id (\"/sub-accounts/new\"), a real substring present in any member's src (the attribute strategy is a literal CSS substring match, not a wildcard/glob, so the member id segment is dropped entirely rather than replaced with a placeholder that would never match), with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
         }
       },
       "timeoutMs": 8000,
@@ -409,14 +409,14 @@
             {
               "strategy": "attribute",
               "attribute": "src",
-              "value": "/members/*/sub-accounts/new"
+              "value": "/sub-accounts/new"
             },
             {
               "strategy": "css",
               "selector": "iframe"
             }
           ],
-          "robustnessNote": "Only iframe on the page at recording time; matched on a path-shape (member id wildcarded) rather than the literal src so the same locator works for any member id, with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
+          "robustnessNote": "Only iframe on the page at recording time; matched on the path suffix after the member id (\"/sub-accounts/new\"), a real substring present in any member's src (the attribute strategy is a literal CSS substring match, not a wildcard/glob, so the member id segment is dropped entirely rather than replaced with a placeholder that would never match), with a bare `iframe` css fallback if the app ever adds exactly one frame in a different shape."
         }
       },
       "timeoutMs": 8000,

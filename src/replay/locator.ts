@@ -42,7 +42,11 @@ export async function resolveLocator(
       const locator = candidateToLocator(scope, candidate);
       await locator.first().waitFor({ state: "visible", timeout: timeoutMs / spec.candidates.length });
       const count = await locator.count();
-      if (count >= 1) {
+      // Exactly one, not "at least one": a substring/text candidate that
+      // matches more than one element on the page is ambiguous, not a
+      // resolution -- silently taking .first() could act on the wrong
+      // element. Fall through to the next, more specific candidate instead.
+      if (count === 1) {
         return { locator: locator.first(), usedCandidate: candidate, candidateIndex: i };
       }
     } catch {

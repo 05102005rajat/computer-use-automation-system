@@ -7,10 +7,10 @@ redacted event log) and one or more `.png` screenshots.
 
 | Directory | What it demonstrates |
 |---|---|
-| `discovery-1788939753680` | **The required live LLM-driven discovery run.** Goal: log in, look up member 10023, extract the savings balance, open a new "share" sub-account with nickname "Holiday Fund" and a $50 deposit, extract the confirmation number. Produced `artifacts/open_sub_account.v1.json` (`approval: "approved"`, from `--auto-approve-risky`). `model_decision` events carry a `reasoning` string for every action. |
-| `replay-1788939814623` | **Deterministic replay, happy path**, member 40040 — `npm run replay -- --member 40040 --type money_market --nickname "Retirement Boost" --deposit 200`. Also exercises the *recoverable* condition path for free: this member forces a one-time "session expired" interstitial, which replay detects and clears automatically (`replay_recoverable_condition` in the log) before completing. |
-| `replay-1788939868039` | **Business outcome, not a crash** — `npm run replay -- --member 99999 --type share --nickname "Test" --deposit 25` → `{"status":"business_outcome","outcome":"member_not_found"}`. |
-| `replay-1788939884951` | **Escalation demo — risky-action authorization, human performs the action directly.** Run against `artifacts/open_sub_account.v1-draft.json` (a copy of the approved artifact with `approval` reverted to `"draft"`, kept only so this demo has something to pause against — no CLI command flips it). Replay pauses for real (`escalation_requested`) before the "Open Sub-Account" click — the *only* step flagged `risky`. The operator called `POST /interventions/:id/actions {"type":"click","refId":"f0_3"}` against the live session — i.e. clicked the button itself, not just "approved" — then resumed. `run.jsonl` shows `replay_step_completed_by_human` for `step-10`: automation recognized the step was already performed and did **not** click it again. |
+| `discovery-1788944996038` | **The required live LLM-driven discovery run.** Goal: log in, look up member 10023, extract the savings balance, open a new "share" sub-account with nickname "Holiday Fund" and a $50 deposit, extract the confirmation number. Produced `artifacts/open_sub_account.v1.json` (`approval: "approved"`, from `--auto-approve-risky`). `model_decision` events carry a `reasoning` string for every action. |
+| `replay-1788945052256` | **Deterministic replay, happy path**, member 40040 — `npm run replay -- --member 40040 --type money_market --nickname "Retirement Boost" --deposit 200`. Also exercises the *recoverable* condition path for free: this member forces a one-time "session expired" interstitial, which replay detects and clears automatically (`replay_recoverable_condition` in the log) before completing. |
+| `replay-1788945082671` | **Business outcome, not a crash** — `npm run replay -- --member 99999 --type share --nickname "Test" --deposit 25` → `{"status":"business_outcome","outcome":"member_not_found"}`. |
+| `replay-1788945101208` | **Escalation demo — risky-action authorization, human performs the action directly.** Run against `artifacts/open_sub_account.v1-draft.json` (a copy of the approved artifact with `approval` reverted to `"draft"`, kept only so this demo has something to pause against — no CLI command flips it). Replay pauses for real (`escalation_requested`) before the "Open Sub-Account" click — the *only* step flagged `risky`. The operator called `POST /interventions/:id/actions {"type":"click","refId":"f0_3"}` against the live session — i.e. clicked the button itself, not just "approved" — then resumed. `run.jsonl` shows `replay_step_completed_by_human` for `step-10`: automation recognized the step was already performed and did **not** click it again. |
 
 See `README.md`'s "Quick demo" for the exact commands that produced these four runs.
 
@@ -29,6 +29,37 @@ See `README.md`'s "Quick demo" for the exact commands that produced these four r
   invocation demo; a capability catalog layer was considered and cut (`REPORT.md` §7). The
   artifact's `approval` field is a plain JSON edit a reviewer makes directly — `discover
   --auto-approve-risky` is the only thing in this build that sets it programmatically.
+
+## Note on a second `/code-review` pass
+
+A full-codebase review (not just the recent diff) found 8 more confirmed issues, all fixed and
+re-verified against the four runs above:
+
+- **The discovery loop had the same double-execution bug** the replay executor's risk gate was
+  already fixed for — an operator who performed a risky click themselves during discovery would
+  have had automation click it again. Same fix (check `humanActions` before re-executing).
+- **The route allowlist only ever checked explicit `navigate` steps**, never a click-triggered
+  navigation — the dominant way this fully server-rendered app actually navigates. Now checked
+  after every click too (`replay/executor.ts`'s `performAction`, `agent/loop.ts`'s click branch).
+- **The operator's manual-action endpoint bypassed the shared click/type/select dispatch** (raw
+  `locator.click()` instead of `performLocatorAction`/`clickAndSettle`) and ran with no guardrail
+  checks at all, unlike every other action path in the codebase. Fixed to use the same dispatch
+  and the same allowlist checks.
+- **A control-state race**: the operator endpoint mutated the live page *before* checking whether
+  the session was still under human control, only validating afterward when recording the action.
+  Added `assertHumanControl`, checked immediately before the mutation.
+- **Reflected XSS** in the mock target app: `memberId`/`nickname` were interpolated into HTML with
+  no escaping. Added `escapeHtml`, applied everywhere a request-derived string reaches a template;
+  regression tests in `target-app/views.test.ts`.
+- **`resolveLocator` accepted an ambiguous match** (`count >= 1`, not `=== 1`) and silently took
+  the first element — now falls through to the next fallback candidate instead.
+- **The iframe locator's "wildcarded" `src` match was inert**: it embedded a literal `*` character
+  into a CSS substring selector, which never matches (CSS has no glob semantics there), so
+  resolution always fell through to the bare `iframe` fallback. Fixed to use the real stable path
+  suffix instead of a fake wildcard.
+- **A missing `username`/`password` param** (excluded from the artifact's public `inputs` by
+  design) produced an unclassified hard failure instead of `errorType: "input_validation"`. Added
+  a dedicated error type so it's now classified correctly.
 
 ## Screen recordings (`videos/`)
 

@@ -229,3 +229,11 @@ map — fine at this scale, not the place to add infrastructure prematurely).
   truly capability-agnostic vs. accidentally shaped by this one flow), the base-artifact + override
   mechanism for multi-tenant reuse, and multi-run stability scoring before gating anything on
   `approval: "approved"` automatically rather than by human action.
+- **A second, full-codebase `/code-review` pass** (not just the recent diff) found 8 more confirmed
+  issues, most notably: the discovery loop had the same double-execution bug the replay executor's
+  risk gate was already fixed for; the route allowlist only checked explicit `navigate` steps, not
+  a click-triggered navigation (the dominant way this fully server-rendered app actually moves
+  between pages); the operator's manual-action endpoint bypassed the shared click dispatch and ran
+  with no guardrail checks; a control-state race let it mutate the live page before checking who
+  was actually in control; and a reflected-XSS sink in the mock app's HTML templates. All eight
+  fixed and re-verified against all four evidence runs; full list in `evidence/INDEX.md`.
