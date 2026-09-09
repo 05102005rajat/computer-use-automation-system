@@ -50,3 +50,16 @@ export function isRiskyAction(policy: Policy, actionLabel: string): boolean {
   const lower = actionLabel.toLowerCase();
   return policy.riskyActionMatchers.some((m) => lower.includes(m.toLowerCase()));
 }
+
+/** A run's wall-clock cutoff under `policy.maxRunTimeoutMs`, computed once at
+ * the start of a run and checked on every iteration by both the discovery
+ * loop and the replay executor -- shared so the two bounded loops enforce
+ * the exact same guardrail rather than each hand-rolling the same
+ * Date.now()-plus-timeout arithmetic. */
+export function deadlineFor(policy: Policy): number {
+  return Date.now() + policy.maxRunTimeoutMs;
+}
+
+export function isPastDeadline(deadline: number): boolean {
+  return Date.now() > deadline;
+}

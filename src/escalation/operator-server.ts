@@ -6,6 +6,7 @@ import {
   listPending,
   performHumanAction,
   resumeSession,
+  RESOLUTIONS,
 } from "./session-manager.js";
 import { takeSnapshot, findElement } from "../agent/perception.js";
 import { buildLocatorSpec } from "../agent/build-locator.js";
@@ -70,8 +71,11 @@ export function createOperatorServer() {
   app.post("/interventions/:id/resume", (req, res) => {
     const pending = getPendingById(req.params.id);
     if (!pending) return res.status(404).json({ error: "not found or already resolved" });
-    const resolution = (req.body?.resolution as string) ?? "manual_actions_completed";
-    resumeSession(pending.runId, resolution as any);
+    const resolution = req.body?.resolution ?? "manual_actions_completed";
+    if (!RESOLUTIONS.includes(resolution)) {
+      return res.status(400).json({ error: `resolution must be one of: ${RESOLUTIONS.join(", ")}` });
+    }
+    resumeSession(pending.runId, resolution);
     res.json({ ok: true });
   });
 

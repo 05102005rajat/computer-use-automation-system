@@ -8,6 +8,12 @@ import type { Page } from "playwright";
 
 export type ControlState = "automation" | "human";
 
+// The single source of truth for valid resolution values -- imported by the
+// operator API's request validation instead of re-declared there, so the two
+// can't silently drift apart.
+export const RESOLUTIONS = ["approved", "rejected", "manual_actions_completed"] as const;
+export type Resolution = (typeof RESOLUTIONS)[number];
+
 export interface HumanAction {
   type: "click" | "type" | "select";
   refId: string;
@@ -25,7 +31,7 @@ export interface InterventionRequest {
   createdAt: string;
   screenshotPath?: string;
   status: "pending" | "resolved";
-  resolution?: "approved" | "rejected" | "manual_actions_completed";
+  resolution?: Resolution;
   humanActions: HumanAction[];
 }
 

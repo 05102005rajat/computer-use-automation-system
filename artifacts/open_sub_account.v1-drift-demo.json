@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "id": "open_sub_account-1788930353325",
+  "id": "open_sub_account-1788937043743",
   "name": "open_sub_account",
   "version": 1,
   "description": "Look up a member, read their savings balance, and open a new sub-account for them.",
-  "createdAt": "2026-09-09T05:05:53.325Z",
+  "createdAt": "2026-09-09T06:57:23.743Z",
   "discovery": {
     "sourceGoal": "Log into the teller console (username \"teller\", password \"[REDACTED]\"). Then look up member 10023, extract their current savings balance as \"savingsBalance\", then open a new \"share\" sub-account for them with nickname \"Holiday Fund\" and an initial deposit of 50. Once you reach the confirmation screen, extract the confirmation number as \"confirmationNumber\", then finish successfully.",
     "model": "claude-sonnet-4-5",
-    "transcriptRef": "evidence/discovery-1788930310094"
+    "transcriptRef": "evidence/discovery-1788937005223"
   },
   "target": {
     "vendorProduct": "meridian-teller-console",
@@ -397,7 +397,7 @@
     },
     {
       "id": "step-11",
-      "description": "Extract \"confirmationNumber\" from \"SA-1011\"",
+      "description": "Extract \"confirmationNumber\" from \"SA-1001\"",
       "frame": {
         "iframeLocator": {
           "candidates": [
@@ -420,7 +420,7 @@
         "candidates": [
           {
             "strategy": "text",
-            "text": "SA-1011",
+            "text": "SA-1001",
             "exact": false
           },
           {

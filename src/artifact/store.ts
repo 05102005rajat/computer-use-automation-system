@@ -7,11 +7,21 @@ export function artifactPath(root: string, name: string, version: number): strin
   return path.join(root, `${name}.v${version}.json`);
 }
 
+/** Validates and redacts before writing to an exact path -- shared by
+ * `saveArtifact` (which derives the path from name+version) and any caller
+ * that already has a specific file path in hand (e.g. approving one) and
+ * must not silently redirect the write to the canonical name/version path
+ * instead. */
+export function writeArtifactToFile(file: string, artifact: CapabilityArtifact): CapabilityArtifact {
+  const validated = CapabilityArtifactSchema.parse(artifact);
+  fs.writeFileSync(file, JSON.stringify(redactValue(validated), null, 2));
+  return validated;
+}
+
 export function saveArtifact(root: string, artifact: CapabilityArtifact): string {
   fs.mkdirSync(root, { recursive: true });
-  const validated = CapabilityArtifactSchema.parse(artifact);
-  const file = artifactPath(root, validated.name, validated.version);
-  fs.writeFileSync(file, JSON.stringify(redactValue(validated), null, 2));
+  const file = artifactPath(root, artifact.name, artifact.version);
+  writeArtifactToFile(file, artifact);
   return file;
 }
 

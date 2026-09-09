@@ -195,3 +195,14 @@ map — fine at this scale, not the place to add infrastructure prematurely).
   is truly capability-agnostic vs. accidentally shaped by this one flow), the base-artifact +
   override mechanism for multi-tenant reuse, and multi-run stability scoring before gating
   anything on `approval: "approved"` automatically rather than by human action.
+- **A `/code-review` pass caught a real double-execution bug** in the risky-action escalation
+  gate: it only checked for `resolution === "rejected"`, so an operator who authorized a risky
+  step by performing it themselves through the operator API (rather than just approving it) had
+  automation perform the same click a second time. Also caught: a `request_help` tool call
+  leaving its `tool_use` block unresolved (would have crashed the next API call), an unvalidated
+  `resolution` string on the operator API, a guardrail violation being routed into human
+  escalation instead of a hard refusal, `approve`/`unapprove` bypassing schema validation and
+  redaction on write, an `extract` step silently skipped during recoverable-condition retries,
+  and the declared step/timeout limits never being enforced. All eight are fixed; see
+  `evidence/INDEX.md` for the regression run. A follow-up `/simplify` pass then deduplicated the
+  deadline/step-limit checks and the resolution-enum declaration across files.

@@ -8,6 +8,8 @@ import type { FrameRef } from "../artifact/schema.js";
 import {
   assertActionTypeAllowed,
   assertOriginAllowed,
+  deadlineFor,
+  isPastDeadline,
   isRiskyAction,
   type Policy,
 } from "../guardrails/policy.js";
@@ -56,8 +58,12 @@ function paramValueFor(params: Record<string, string>, value: string): string | 
 export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryResult> {
   const anthropic = new Anthropic();
   const model = opts.model ?? "claude-sonnet-4-5";
-  const maxSteps = opts.maxSteps ?? 20;
+  // The policy's maxStepsPerRun/maxRunTimeoutMs are the enforced guardrail
+  // bounds; `opts.maxSteps` only ever narrows them for a specific call site,
+  // never widens past what the policy allows.
   const { logger, policy } = opts;
+  const maxSteps = Math.min(opts.maxSteps ?? Infinity, policy.maxStepsPerRun);
+  const deadline = deadlineFor(policy);
 
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
@@ -79,6 +85,13 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
     const messages: Anthropic.MessageParam[] = [];
 
     for (let step = 0; step < maxSteps; step++) {
+      if (isPastDeadline(deadline)) {
+        logger.event("discovery_stopped", { reason: "max_run_timeout_exceeded" });
+        await browser.close();
+        unregisterSession(opts.runId);
+        return { success: false, reason: "max_run_timeout_exceeded", transcript, outputsCollected, finalUrl: page.url() };
+      }
+
       const snapshot = await takeSnapshot(page);
       const observation = buildObservationMessage({
         goal: opts.goal,
@@ -125,11 +138,32 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
           goal: opts.goal,
           stepDescription: `discovery step ${step}: agent requested help`,
         });
+        history.push(`request_help(${input.reason}) -> ${resolved.resolution}`);
+
+        if (resolved.resolution === "rejected") {
+          await browser.close();
+          unregisterSession(opts.runId);
+          return {
+            success: false,
+            reason: `Operator declined the help request: ${input.reason}`,
+            transcript,
+            outputsCollected,
+            finalUrl: page.url(),
+          };
+        }
+
+        // Every tool_use must be paired with a tool_result before the next
+        // API call, or Anthropic rejects the request outright.
         messages.push({
           role: "user",
-          content: `A human operator intervened (${resolved.resolution}, ${resolved.humanActions.length} manual actions). Re-observe the page and continue.`,
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: toolUse.id,
+              content: `A human operator intervened (${resolved.resolution}, ${resolved.humanActions.length} manual actions). Re-observe the page and continue.`,
+            },
+          ],
         });
-        history.push(`request_help(${input.reason}) -> ${resolved.resolution}`);
         continue;
       }
 

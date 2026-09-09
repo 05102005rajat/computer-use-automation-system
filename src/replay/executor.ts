@@ -2,7 +2,7 @@ import { chromium, type Page, type Frame } from "playwright";
 import type { CapabilityArtifact, BusinessOutcome, Checkpoint, ValueRef } from "../artifact/schema.js";
 import { resolveFrame, resolveLocator, LocatorResolutionError, clickAndSettle } from "./locator.js";
 import { matchesUrlPattern, type ReplayResult } from "./errors.js";
-import { assertActionTypeAllowed, assertOriginAllowed, isRiskyAction, type Policy, PolicyViolationError } from "../guardrails/policy.js";
+import { assertActionTypeAllowed, assertOriginAllowed, deadlineFor, isPastDeadline, type Policy, PolicyViolationError } from "../guardrails/policy.js";
 import type { RunLogger } from "../evidence/logger.js";
 import { registerSession, unregisterSession } from "../escalation/session-manager.js";
 import { escalate } from "../escalation/escalate.js";
@@ -12,6 +12,37 @@ function resolveValue(ref: ValueRef, params: Record<string, string>): string {
   const v = params[ref.name];
   if (v === undefined) throw new Error(`Missing required input parameter: ${ref.name}`);
   return v;
+}
+
+type ActionableStep = Extract<CapabilityArtifact["steps"][number], { kind: "click" | "type" | "select" | "extract" | "wait_for" }>;
+
+function isActionable(step: CapabilityArtifact["steps"][number]): step is ActionableStep {
+  return step.kind !== "navigate";
+}
+
+/** Performs one already-resolved click/type/select/extract action. Shared by
+ * the main execution path and the recoverable-condition retry path so both
+ * handle every step kind identically -- an extract step retried after a
+ * recovery used to fall through unhandled and silently skip writing its
+ * output, purely because the two call sites had drifted apart. */
+async function performAction(
+  step: ActionableStep,
+  scope: Page | Frame,
+  locator: import("playwright").Locator,
+  params: Record<string, string>,
+  outputs: Record<string, string>
+): Promise<void> {
+  if (step.kind === "click") {
+    await clickAndSettle(scope, locator, step.timeoutMs);
+  } else if (step.kind === "type") {
+    await locator.fill(resolveValue(step.value, params), { timeout: step.timeoutMs });
+  } else if (step.kind === "select") {
+    await locator.selectOption(resolveValue(step.value, params), { timeout: step.timeoutMs });
+  } else if (step.kind === "extract") {
+    const raw = step.attribute === "value" ? await locator.inputValue() : await locator.textContent();
+    outputs[step.outputName] = (raw ?? "").trim();
+  }
+  // "wait_for" has nothing left to do: resolveLocator already waited for visibility.
 }
 
 async function detectorMatches(
@@ -61,10 +92,20 @@ export async function replayArtifact(opts: ReplayOptions): Promise<ReplayResult>
     }
   }
 
+  if (artifact.steps.length > policy.maxStepsPerRun) {
+    return {
+      status: "error",
+      errorType: "policy_violation",
+      step: "policy",
+      message: `Artifact has ${artifact.steps.length} steps, exceeding the policy limit of ${policy.maxStepsPerRun}.`,
+    };
+  }
+
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   registerSession(opts.runId, page);
   const outputs: Record<string, string> = {};
+  const deadline = deadlineFor(policy);
 
   const cleanup = async () => {
     await browser.close().catch(() => {});
@@ -73,6 +114,12 @@ export async function replayArtifact(opts: ReplayOptions): Promise<ReplayResult>
 
   try {
     for (const step of artifact.steps) {
+      if (isPastDeadline(deadline)) {
+        logger.event("replay_stopped", { reason: "max_run_timeout_exceeded", stepId: step.id });
+        await cleanup();
+        return { status: "error", errorType: "policy_violation", step: step.id, message: "max_run_timeout_exceeded" };
+      }
+
       logger.event("replay_step_start", { stepId: step.id, kind: step.kind, description: step.description });
 
       // Risk gate: an unattended (non-approved) artifact must get explicit
@@ -91,6 +138,14 @@ export async function replayArtifact(opts: ReplayOptions): Promise<ReplayResult>
           await cleanup();
           return { status: "error", errorType: "operator_rejected", step: step.id, message: "Operator rejected the risky action." };
         }
+        if (resolved.humanActions.length > 0) {
+          // The operator already performed this step by hand (recorded in
+          // humanActions) rather than merely authorizing automation to
+          // proceed -- executing it again here would double-submit an
+          // irreversible action.
+          logger.event("replay_step_completed_by_human", { stepId: step.id });
+          continue;
+        }
       }
 
       try {
@@ -105,20 +160,16 @@ export async function replayArtifact(opts: ReplayOptions): Promise<ReplayResult>
         assertActionTypeAllowed(policy, step.kind as any);
         const scope = await resolveFrame(page, step.frame, step.timeoutMs);
         const { locator } = await resolveLocator(scope, step.locator, step.timeoutMs);
-
-        if (step.kind === "click") {
-          await clickAndSettle(scope, locator, step.timeoutMs);
-        } else if (step.kind === "type") {
-          await locator.fill(resolveValue(step.value, params), { timeout: step.timeoutMs });
-        } else if (step.kind === "select") {
-          await locator.selectOption(resolveValue(step.value, params), { timeout: step.timeoutMs });
-        } else if (step.kind === "extract") {
-          const raw = step.attribute === "value" ? await locator.inputValue() : await locator.textContent();
-          outputs[step.outputName] = (raw ?? "").trim();
-        } else if (step.kind === "wait_for") {
-          // resolveLocator already waited for visibility above.
-        }
+        await performAction(step, scope, locator, params, outputs);
       } catch (err) {
+        // A guardrail violation is a hard refusal, never a "let's ask a
+        // human to look at this" situation -- rethrow so it reaches the
+        // single policy_violation response shape in the outer catch below,
+        // instead of routing into the outcome-matching/escalation path (which
+        // would let a live page that just violated policy sit open waiting
+        // on an operator instead of being shut down immediately).
+        if (err instanceof PolicyViolationError) throw err;
+
         // A locator failed to resolve, or an action timed out. Before
         // declaring a hard failure, check whether the app landed on a
         // *known* runtime condition -- that's the core distinction the
@@ -131,17 +182,14 @@ export async function replayArtifact(opts: ReplayOptions): Promise<ReplayResult>
           return { status: "business_outcome", outcome: outcomeMatch.name, description: outcomeMatch.description };
         }
 
-        if (outcomeMatch?.category === "recoverable" && outcomeMatch.recovery) {
+        if (outcomeMatch?.category === "recoverable" && outcomeMatch.recovery && isActionable(step)) {
           logger.event("replay_recoverable_condition", { outcome: outcomeMatch.name, stepId: step.id });
           await applyRecovery(page, outcomeMatch, params, step.timeoutMs);
           // Retry the same step once now that the interstitial is cleared.
           try {
             const scope = await resolveFrame(page, step.frame, step.timeoutMs);
-            const { locator } = await resolveLocator(scope, (step as any).locator, step.timeoutMs);
-            if (step.kind === "click") {
-              await clickAndSettle(scope, locator, step.timeoutMs);
-            } else if (step.kind === "type") await locator.fill(resolveValue((step as any).value, params), { timeout: step.timeoutMs });
-            else if (step.kind === "select") await locator.selectOption(resolveValue((step as any).value, params), { timeout: step.timeoutMs });
+            const { locator } = await resolveLocator(scope, step.locator, step.timeoutMs);
+            await performAction(step, scope, locator, params, outputs);
             continue;
           } catch (retryErr) {
             const evidencePath = await logger.screenshot(page, `hard-failure-${step.id}`);

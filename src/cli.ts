@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { runDiscovery } from "./agent/loop.js";
 import { recordArtifact } from "./artifact/recorder.js";
-import { saveArtifact, loadArtifact, latestArtifactFile } from "./artifact/store.js";
+import { saveArtifact, loadArtifact, latestArtifactFile, writeArtifactToFile } from "./artifact/store.js";
 import { replayArtifact } from "./replay/executor.js";
 import { createRunLogger } from "./evidence/logger.js";
 import { defaultPolicy } from "./guardrails/policy.js";
@@ -198,7 +198,7 @@ function cmdApprove(args: Record<string, string>) {
   const file = args.artifact ?? latestArtifactFile(ARTIFACTS_ROOT, OpenSubAccount.CAPABILITY_NAME);
   const artifact = loadArtifact(file);
   artifact.approval = "approved";
-  fs.writeFileSync(file, JSON.stringify(artifact, null, 2));
+  writeArtifactToFile(file, artifact);
   console.log(`Approved: ${file}`);
 }
 
@@ -206,7 +206,7 @@ function cmdUnapprove(args: Record<string, string>) {
   const file = args.artifact ?? latestArtifactFile(ARTIFACTS_ROOT, OpenSubAccount.CAPABILITY_NAME);
   const artifact = loadArtifact(file);
   artifact.approval = "draft";
-  fs.writeFileSync(file, JSON.stringify(artifact, null, 2));
+  writeArtifactToFile(file, artifact);
   console.log(`Reverted to draft: ${file}`);
 }
 

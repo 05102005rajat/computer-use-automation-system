@@ -1,8 +1,8 @@
 {
   "status": "success",
   "outputs": {
-    "savingsBalance": "$4382.10",
-    "confirmationNumber": "SA-1013"
+    "savingsBalance": "$12500.55",
+    "confirmationNumber": "SA-1002"
   },
   "checkpoint": "Confirmation page reached with a confirmation number."
 }
