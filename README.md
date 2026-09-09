@@ -92,6 +92,17 @@ The backgrounded replay resumes and completes -- and does **not** click "Open Su
 second time, because it recognizes the operator already performed that step (see `run.jsonl`'s
 `replay_step_completed_by_human` event). `evidence/INDEX.md` points at the exact captured run.
 
+## Screen recording
+
+![Escalation demo preview](evidence/videos/escalation-preview.gif)
+
+`evidence/videos/` has real screen recordings (Playwright's own video capture, not staged) of the
+three scenarios above, from a separate run of the same commands:
+[`discovery.mp4`](evidence/videos/discovery.mp4) (the live LLM run),
+[`replay-happy.mp4`](evidence/videos/replay-happy.mp4) (deterministic replay), and
+[`escalation.mp4`](evidence/videos/escalation.mp4) (pause -> operator acts -> resume, the clip the
+GIF above is from).
+
 ## What's here
 
 - **Target application** (`src/target-app`): a mock "Meridian Credit Union" teller console --

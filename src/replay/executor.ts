@@ -1,4 +1,5 @@
-import { chromium, type Page, type Frame } from "playwright";
+import type { Page, Frame } from "playwright";
+import { launchPage } from "../evidence/video.js";
 import type { CapabilityArtifact, BusinessOutcome, Checkpoint, ValueRef } from "../artifact/schema.js";
 import { resolveFrame, resolveLocator, LocatorResolutionError, performLocatorAction } from "./locator.js";
 import { matchesUrlPattern, type ReplayResult } from "./errors.js";
@@ -105,8 +106,7 @@ export async function replayArtifact(opts: ReplayOptions): Promise<ReplayResult>
     };
   }
 
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+  const { browser, page } = await launchPage();
   registerSession(opts.runId, page);
   const outputs: Record<string, string> = {};
   const deadline = deadlineFor(policy);

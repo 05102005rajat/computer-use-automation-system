@@ -1,6 +1,7 @@
 node_modules/
 .env
 .claude/
+INTERVIEW_PREP.md
 *.log
 dist/
 .DS_Store

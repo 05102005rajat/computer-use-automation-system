@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { chromium, type Page } from "playwright";
+import { launchPage } from "../evidence/video.js";
 import { takeSnapshot, findElement, type ElementDescriptor } from "./perception.js";
 import { buildLocatorSpec } from "./build-locator.js";
 import { AGENT_TOOLS } from "./tools.js";
@@ -65,8 +65,7 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
   const maxSteps = Math.min(opts.maxSteps ?? Infinity, policy.maxStepsPerRun);
   const deadline = deadlineFor(policy);
 
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+  const { browser, page } = await launchPage();
   registerSession(opts.runId, page);
 
   const transcript: DiscoveryStep[] = [];

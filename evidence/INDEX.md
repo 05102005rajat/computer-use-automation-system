@@ -29,3 +29,13 @@ See `README.md`'s "Quick demo" for the exact commands that produced these four r
   invocation demo; a capability catalog layer was considered and cut (`REPORT.md` §7). The
   artifact's `approval` field is a plain JSON edit a reviewer makes directly — `discover
   --auto-approve-risky` is the only thing in this build that sets it programmatically.
+
+## Screen recordings (`videos/`)
+
+Real Playwright video capture (`evidence/video.ts`'s `launchPage`, gated behind a
+`RECORD_VIDEO_DIR` env var normal runs never set) of a separate run of the exact commands in
+`README.md`'s Quick demo -- `discovery.mp4`, `replay-happy.mp4`, and `escalation.mp4` (the
+`escalation-preview.gif` embedded in the README is a downsampled clip of the last one). These are
+illustrative, not the numbered runs listed above -- a fresh `discover` run always creates a new
+artifact version (`v2`, since `v1` already exists in the repo), so the video-backing runs used a
+`v2` artifact rather than replacing the four canonical logs above.
