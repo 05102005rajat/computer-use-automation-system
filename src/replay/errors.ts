@@ -1,3 +1,5 @@
+export { matchesUrlPattern } from "../guardrails/url-pattern.js";
+
 export type ReplayResult =
   | { status: "success"; outputs: Record<string, string>; checkpoint: string }
   | { status: "business_outcome"; outcome: string; description: string }
@@ -11,16 +13,3 @@ export type ReplayResult =
       evidencePath?: string;
     };
 
-export function matchesUrlPattern(url: string, pattern: string): boolean {
-  const pathname = new URL(url).pathname;
-  const patternPath = pattern.startsWith("http") ? new URL(pattern).pathname : pattern;
-  const regex = new RegExp(
-    "^" +
-      patternPath
-        .split("*")
-        .map((seg) => seg.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
-        .join("[^/]+") +
-      "$"
-  );
-  return regex.test(pathname);
-}

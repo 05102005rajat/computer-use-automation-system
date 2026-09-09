@@ -7,7 +7,7 @@ import { SYSTEM_PROMPT, buildObservationMessage } from "./prompt.js";
 import type { FrameRef } from "../artifact/schema.js";
 import {
   assertActionTypeAllowed,
-  assertOriginAllowed,
+  assertNavigationAllowed,
   deadlineFor,
   isPastDeadline,
   isRiskyAction,
@@ -75,7 +75,7 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
   let stepIndex = 0;
 
   try {
-    assertOriginAllowed(policy, opts.entryUrl);
+    assertNavigationAllowed(policy, opts.entryUrl);
     assertActionTypeAllowed(policy, "navigate");
     await page.goto(opts.entryUrl, { waitUntil: "networkidle" });
     transcript.push({ kind: "navigate", index: stepIndex++, url: opts.entryUrl, description: "Enter application" });
@@ -121,7 +121,7 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
       messages.push({ role: "assistant", content: response.content });
 
       const input = toolUse.input as any;
-      logger.event("model_decision", { tool: toolUse.name, input });
+      logger.event("model_decision", { tool: toolUse.name, reasoning: input.reasoning, input });
 
       if (toolUse.name === "finish") {
         logger.event("discovery_finished", { success: input.success, reason: input.reason });
@@ -171,7 +171,7 @@ export async function runDiscovery(opts: DiscoveryOptions): Promise<DiscoveryRes
       try {
         if (toolUse.name === "navigate") {
           assertActionTypeAllowed(policy, "navigate");
-          assertOriginAllowed(policy, input.url);
+          assertNavigationAllowed(policy, input.url);
           await page.goto(input.url, { waitUntil: "networkidle" });
           transcript.push({ kind: "navigate", index: stepIndex++, url: input.url, description: `Navigate to ${input.url}` });
           history.push(`navigate(${input.url})`);

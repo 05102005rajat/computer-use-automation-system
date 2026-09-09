@@ -122,7 +122,7 @@ cp .env.example .env   # then fill in ANTHROPIC_API_KEY
 
    The backgrounded replay resumes on the same page and completes. A second, richer escalation
    demo (a human manually filling a drifted field via the operator API, not just approving) is
-   in `evidence/replay-1788937168469` -- see `evidence/INDEX.md` for exactly how it was driven.
+   in `evidence/replay-1788937773593` -- see `evidence/INDEX.md` for exactly how it was driven.
 
 7. (Stretch) List and invoke capabilities the way an AI agent would -- by name, with typed args:
 

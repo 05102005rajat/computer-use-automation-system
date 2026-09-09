@@ -1,13 +1,23 @@
 import type Anthropic from "@anthropic-ai/sdk";
 
+// `reasoning` is required on every action tool so a rationale is always
+// captured in evidence, regardless of tool_choice mode. With tool_choice:
+// "any" (used here so the model always calls something) Claude typically
+// skips any free-form preamble text and goes straight to the tool call, so a
+// separate "why" would otherwise go unrecorded -- putting it inside the tool
+// call itself guarantees it survives into the log.
+const REASONING_PROPERTY = {
+  reasoning: { type: "string", description: "One short sentence: why this action, given the current observation." },
+} as const;
+
 export const AGENT_TOOLS: Anthropic.Tool[] = [
   {
     name: "navigate",
     description: "Navigate the browser to a URL. Only used for the initial entry point or a full page reload; prefer clicking links/buttons otherwise.",
     input_schema: {
       type: "object",
-      properties: { url: { type: "string" } },
-      required: ["url"],
+      properties: { url: { type: "string" }, ...REASONING_PROPERTY },
+      required: ["url", "reasoning"],
     },
   },
   {
@@ -15,8 +25,8 @@ export const AGENT_TOOLS: Anthropic.Tool[] = [
     description: "Click an element identified by its refId from the current observation.",
     input_schema: {
       type: "object",
-      properties: { refId: { type: "string" } },
-      required: ["refId"],
+      properties: { refId: { type: "string" }, ...REASONING_PROPERTY },
+      required: ["refId", "reasoning"],
     },
   },
   {
@@ -24,8 +34,8 @@ export const AGENT_TOOLS: Anthropic.Tool[] = [
     description: "Type text into a text input/textarea identified by its refId. Replaces existing content.",
     input_schema: {
       type: "object",
-      properties: { refId: { type: "string" }, text: { type: "string" } },
-      required: ["refId", "text"],
+      properties: { refId: { type: "string" }, text: { type: "string" }, ...REASONING_PROPERTY },
+      required: ["refId", "text", "reasoning"],
     },
   },
   {
@@ -33,8 +43,8 @@ export const AGENT_TOOLS: Anthropic.Tool[] = [
     description: "Choose an option (by its value attribute) in a <select> identified by its refId.",
     input_schema: {
       type: "object",
-      properties: { refId: { type: "string" }, value: { type: "string" } },
-      required: ["refId", "value"],
+      properties: { refId: { type: "string" }, value: { type: "string" }, ...REASONING_PROPERTY },
+      required: ["refId", "value", "reasoning"],
     },
   },
   {
@@ -46,8 +56,9 @@ export const AGENT_TOOLS: Anthropic.Tool[] = [
         refId: { type: "string" },
         outputName: { type: "string" },
         attribute: { type: "string", enum: ["text", "value"] },
+        ...REASONING_PROPERTY,
       },
-      required: ["refId", "outputName"],
+      required: ["refId", "outputName", "reasoning"],
     },
   },
   {

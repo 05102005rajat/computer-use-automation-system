@@ -2,7 +2,7 @@ import { chromium, type Page, type Frame } from "playwright";
 import type { CapabilityArtifact, BusinessOutcome, Checkpoint, ValueRef } from "../artifact/schema.js";
 import { resolveFrame, resolveLocator, LocatorResolutionError, clickAndSettle } from "./locator.js";
 import { matchesUrlPattern, type ReplayResult } from "./errors.js";
-import { assertActionTypeAllowed, assertOriginAllowed, deadlineFor, isPastDeadline, type Policy, PolicyViolationError } from "../guardrails/policy.js";
+import { assertActionTypeAllowed, assertNavigationAllowed, deadlineFor, isPastDeadline, type Policy, PolicyViolationError } from "../guardrails/policy.js";
 import type { RunLogger } from "../evidence/logger.js";
 import { registerSession, unregisterSession } from "../escalation/session-manager.js";
 import { escalate } from "../escalation/escalate.js";
@@ -151,7 +151,7 @@ export async function replayArtifact(opts: ReplayOptions): Promise<ReplayResult>
       try {
         if (step.kind === "navigate") {
           const url = resolveValue(step.url, params);
-          assertOriginAllowed(policy, url);
+          assertNavigationAllowed(policy, url);
           assertActionTypeAllowed(policy, "navigate");
           await page.goto(url, { waitUntil: "networkidle", timeout: step.timeoutMs });
           continue;
@@ -184,7 +184,7 @@ export async function replayArtifact(opts: ReplayOptions): Promise<ReplayResult>
 
         if (outcomeMatch?.category === "recoverable" && outcomeMatch.recovery && isActionable(step)) {
           logger.event("replay_recoverable_condition", { outcome: outcomeMatch.name, stepId: step.id });
-          await applyRecovery(page, outcomeMatch, params, step.timeoutMs);
+          await applyRecovery(page, outcomeMatch, params, step.timeoutMs, policy);
           // Retry the same step once now that the interstitial is cleared.
           try {
             const scope = await resolveFrame(page, step.frame, step.timeoutMs);
@@ -269,10 +269,18 @@ async function findMatchingOutcome(page: Page, outcomes: BusinessOutcome[], time
   return undefined;
 }
 
-async function applyRecovery(page: Page, outcome: BusinessOutcome, params: Record<string, string>, timeoutMs: number): Promise<void> {
+async function applyRecovery(
+  page: Page,
+  outcome: BusinessOutcome,
+  params: Record<string, string>,
+  timeoutMs: number,
+  policy: Policy
+): Promise<void> {
   if (!outcome.recovery) return;
   if (outcome.recovery.action === "navigate" && outcome.recovery.url) {
-    await page.goto(resolveValue(outcome.recovery.url, params), { waitUntil: "networkidle", timeout: timeoutMs });
+    const url = resolveValue(outcome.recovery.url, params);
+    assertNavigationAllowed(policy, url);
+    await page.goto(url, { waitUntil: "networkidle", timeout: timeoutMs });
   } else if (outcome.recovery.action === "click" && outcome.recovery.locator) {
     // Resolve in the same frame the outcome was detected in -- the
     // interstitial that triggers this recovery is not necessarily on the

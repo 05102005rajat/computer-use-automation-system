@@ -13,7 +13,10 @@ at this size. Five modules with a deliberate seam between them:
   descriptors for interactive elements *and* leaf table cells (read-only "text" elements, needed
   because a lot of what this goal needs to read — a balance, a confirmation number — lives in a
   plain `<td>`, not behind a control). This is deliberately DOM-shape-agnostic: it would produce
-  the same shape of observation over an accessibility tree API on a desktop app.
+  the same shape of observation over an accessibility tree API on a desktop app. Every action
+  tool requires a `reasoning` field in its own input schema (not a separate preamble message) —
+  `tool_choice: "any"` forces a tool call and Claude otherwise skips free-form text, so without
+  this the evidence log would show *what* the agent did with no record of *why*.
 - **`artifact/`** — the schema (zod-validated) and the recorder that mechanically turns a
   successful transcript into a versioned `CapabilityArtifact`. The recorder is not an LLM step;
   it is a pure transform, so every field in the artifact traces back to one concrete action the
@@ -157,9 +160,12 @@ map — fine at this scale, not the place to add infrastructure prematurely).
 
 ## 6. Safety
 
-- **Allowlist** (`guardrails/policy.ts`): explicit origin allowlist and action-type allowlist,
-  enforced by both the discovery loop and the replay executor before every navigate/act call —
-  not just logged after the fact.
+- **Allowlist** (`guardrails/policy.ts`): explicit origin allowlist, a path-shape route allowlist
+  (`allowedRoutePatterns`, e.g. `/members/*` — the origin check alone would still let the agent
+  navigate to any route on a permitted host, including ones nobody has reviewed a capability
+  against), and an action-type allowlist. All three are enforced by both the discovery loop and
+  the replay executor before every navigate/act call, including the recovery-navigate path used
+  when clearing a recoverable condition — not just logged after the fact.
 - **Risk classification**: computed once, at record time, from a text-matcher against the actual
   policy in force (`isRiskyAction`), stored as `step.risky` on the artifact rather than
   re-evaluated from a description string at replay time (which would let classification drift
@@ -205,4 +211,8 @@ map — fine at this scale, not the place to add infrastructure prematurely).
   redaction on write, an `extract` step silently skipped during recoverable-condition retries,
   and the declared step/timeout limits never being enforced. All eight are fixed; see
   `evidence/INDEX.md` for the regression run. A follow-up `/simplify` pass then deduplicated the
-  deadline/step-limit checks and the resolution-enum declaration across files.
+  deadline/step-limit checks and the resolution-enum declaration across files. Re-reading the
+  brief itself (not just the code) afterward found two more real gaps: the allowlist was
+  origin-only despite the brief asking for "domains/routes" (fixed with `allowedRoutePatterns`),
+  and action logging captured *what* the agent did but not *why* (fixed by making `reasoning` a
+  required field on every action tool — see §1).

@@ -12,6 +12,7 @@ Rules:
 the goal, call "request_help" instead of guessing.
 - Call "finish" exactly once you believe the goal is complete (or truly unreachable).
 - Only interact with elements on the current page/frame; do not assume elements exist before you observe them.
+- Every action tool call must include a one-sentence "reasoning" field explaining why, given the current observation -- this is what gets recorded as the audit trail for the run.
 - Elements with role="text" are read-only table cells (not clickable/typeable) -- use "extract" on them to read plain rendered data like a balance or confirmation number.`;
 
 function formatSnapshot(snapshot: PageSnapshot): string {
