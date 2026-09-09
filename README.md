@@ -62,6 +62,12 @@ before continuing (see `run.jsonl`'s `replay_recoverable_condition` event).
 (correctly risk-classified) "Open Sub-Account" click during discovery, and marks the resulting
 artifact `approved` so the replay above doesn't need a separate sign-off step.
 
+`discover` accepts an arbitrary `--goal "..."` and `--target <url>` too, per the brief's 3.1 ("a
+goal + a target ... as input") -- the command above only relies on defaults (built from
+`--member`/`--type`/`--nickname`/`--deposit` via `capabilities/open-sub-account.ts`'s
+`buildGoal`) because that's the capability this system knows how to *record*; the underlying
+`runDiscovery()` call itself takes any goal/entry point.
+
 **One more command: a business outcome, not a crash:**
 
 ```bash

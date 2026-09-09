@@ -70,14 +70,19 @@ async function cmdDiscover(args: Record<string, string>) {
   const logger = createRunLogger(EVIDENCE_ROOT, runId);
   logger.registerSecret(params.password);
 
-  const goal = OpenSubAccount.buildGoal(params);
-  logger.event("run_started", { runId, goal, params: { ...params, password: "[REDACTED]" } });
+  // runDiscovery accepts an arbitrary goal + target (app/URL/entry point) as
+  // input, per the brief's 3.1 -- --goal/--target expose that directly
+  // instead of only ever going through the one capability's own goal
+  // template, which is what the default (no flags) path still does.
+  const goal = args.goal ?? OpenSubAccount.buildGoal(params);
+  const entryUrl = args.target ?? `${TARGET_APP_BASE_URL}/login`;
+  logger.event("run_started", { runId, goal, entryUrl, params: { ...params, password: "[REDACTED]" } });
 
   const result = await runDiscovery({
     runId,
     goal,
     params,
-    entryUrl: `${TARGET_APP_BASE_URL}/login`,
+    entryUrl,
     capabilityName: OpenSubAccount.CAPABILITY_NAME,
     policy: defaultPolicy,
     logger,
@@ -100,7 +105,7 @@ async function cmdDiscover(args: Record<string, string>) {
     sourceGoal: scrubKnownSecrets(goal, [params.password]),
     model: "claude-sonnet-4-5",
     transcriptRef: logger.runDir,
-    entryUrl: `${TARGET_APP_BASE_URL}/login`,
+    entryUrl,
     vendorProduct: "meridian-teller-console",
     params,
     paramSpecs: OpenSubAccount.PARAM_SPECS,
