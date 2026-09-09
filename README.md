@@ -17,16 +17,12 @@ an operator take over the *same live session* and hand control back.
 ```
 
 See `/REPORT.md` for the design write-up (architecture, artifact schema, determinism/error
-handling, heterogeneity & multi-tenant story, escalation model, safety model, cuts). One thing
-worth reading there up front: `REPORT.md` §3 documents a real bug the live discovery run
-surfaced (an iframe-navigation race that made a working click look like a silent no-op) — proof
-the discovery run in `/evidence` actually happened against a live app, not just a description of
-one.
+handling, heterogeneity & multi-tenant story, escalation model, safety model, cuts).
 
 ## Setup
 
-Requires Node 20+ and an Anthropic API key (only needed for `discover`; `replay` and `catalog`
-never call an LLM).
+Requires Node 20+ and an Anthropic API key (only needed for `discover`; `replay` never calls an
+LLM).
 
 ```bash
 npm install
@@ -64,52 +60,37 @@ before continuing (see `run.jsonl`'s `replay_recoverable_condition` event).
 
 `--auto-approve-risky` does two things: it skips the interactive risk-confirmation gate on the
 (correctly risk-classified) "Open Sub-Account" click during discovery, and marks the resulting
-artifact `approved` so the replay above doesn't need a separate sign-off step. Omit it during
-`discover` to see that gate for real instead — see "Escalation demo" below for exactly that flow.
+artifact `approved` so the replay above doesn't need a separate sign-off step.
 
-**See it hit real error paths, not just the happy path:**
+**One more command: a business outcome, not a crash:**
 
 ```bash
 npm run replay -- --member 99999 --type share --nickname "Test" --deposit 25
-# -> {"status":"business_outcome","outcome":"member_not_found", ...}   -- not a crash
-
-npm run replay -- --member 10023 --type share --nickname "Too Much" --deposit 15000
-# -> {"status":"business_outcome","outcome":"validation_error_deposit_over_limit", ...}
+# -> {"status":"business_outcome","outcome":"member_not_found", ...}
 ```
 
-**See the escalation/handoff mechanism for real** — pause, a human acts on the *live* session
-over plain HTTP, resume:
+**One more: the escalation/handoff mechanism, for real.** `replay` gates any risky-classified
+step (here, "Open Sub-Account") behind human authorization unless the artifact it's replaying is
+`approval: "approved"`. The quick demo above auto-approved its artifact, so this uses a second
+copy of it left in `draft` for exactly this purpose (`artifacts/open_sub_account.v1-draft.json`):
 
 ```bash
-npx tsx src/cli.ts unapprove   # artifact is approved by the quick demo above; revert it
-npm run replay -- --member 10023 --type christmas_club --nickname "Escalation Demo" --deposit 60 &
+npm run replay -- --artifact artifacts/open_sub_account.v1-draft.json \
+  --member 10023 --type christmas_club --nickname "Escalation Demo" --deposit 60 &
 
 curl -s http://localhost:4200/interventions                  # pending intervention + reason
-curl -s http://localhost:4200/interventions/intervention-1    # live snapshot + screenshot path
+curl -s http://localhost:4200/interventions/intervention-1    # live snapshot + screenshot path (find the button's refId)
+
+# the operator performs the click on the live session directly, instead of just authorizing it
+curl -s -X POST http://localhost:4200/interventions/intervention-1/actions \
+  -H "Content-Type: application/json" -d '{"type":"click","refId":"f0_3"}'
 curl -s -X POST http://localhost:4200/interventions/intervention-1/resume \
   -H "Content-Type: application/json" -d '{"resolution":"approved"}'
 ```
 
-The backgrounded replay resumes on the same page and completes. `evidence/INDEX.md`'s "Start
-here" table points at the exact captured run for each of the above, plus a second, richer
-escalation demo (a human manually filling a *drifted* field via the operator API, not just
-approving) under "Supplementary."
-
-## Optional / stretch
-
-Everything above is what the brief asks for. These are extra, cheaper to build than to skip
-silently:
-
-```bash
-# Agent-facing capability catalog (stretch goal): discover and invoke by name + typed args
-npx tsx src/cli.ts catalog
-npx tsx src/cli.ts catalog invoke open_sub_account \
-  '{"memberId":"10023","subAccountType":"share","nickname":"Catalog Invoke Demo","depositAmount":90}'
-
-# Human review workflow the escalation demo above exercises directly
-npx tsx src/cli.ts approve      # draft -> approved
-npx tsx src/cli.ts unapprove    # approved -> draft
-```
+The backgrounded replay resumes and completes -- and does **not** click "Open Sub-Account" a
+second time, because it recognizes the operator already performed that step (see `run.jsonl`'s
+`replay_step_completed_by_human` event). `evidence/INDEX.md` points at the exact captured run.
 
 ## What's here
 
@@ -135,16 +116,9 @@ npx tsx src/cli.ts unapprove    # approved -> draft
 - **Escalation & handoff** (`src/escalation`): a session manager that lets automation pause,
   cede control of the *live* Playwright session, and resume, plus a minimal (but real) HTTP
   operator API and console.
-- **Evidence** (`/evidence`): real logs + screenshots from an actual discovery run and several
-  replay runs, including error/business-outcome cases and two escalation demos. See
-  `evidence/INDEX.md` -- "Start here" for the essential four, "Supplementary" for the rest.
-
-## Running without live services
-
-`discover` requires the target app running and a live Anthropic API key -- there is no offline
-mode for it (the assignment explicitly requires a genuine LLM-driven run). `replay` and
-`catalog` only need the target app running; they never call an LLM. Everything in `/evidence`
-is a real, already-captured run if you just want to read the logs without running anything.
+- **Evidence** (`/evidence`): real logs + screenshots from the discovery run and three replay
+  runs (happy path + recoverable condition, business outcome, escalation). See
+  `evidence/INDEX.md`.
 
 ## Tests
 

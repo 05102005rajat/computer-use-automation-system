@@ -1,9 +1,8 @@
 import "dotenv/config";
 import fs from "node:fs";
-import path from "node:path";
 import { runDiscovery } from "./agent/loop.js";
 import { recordArtifact } from "./artifact/recorder.js";
-import { saveArtifact, loadArtifact, latestArtifactFile, writeArtifactToFile } from "./artifact/store.js";
+import { saveArtifact, loadArtifact, latestArtifactFile } from "./artifact/store.js";
 import { replayArtifact } from "./replay/executor.js";
 import { createRunLogger } from "./evidence/logger.js";
 import { defaultPolicy } from "./guardrails/policy.js";
@@ -158,64 +157,6 @@ async function cmdReplay(args: Record<string, string>) {
   if (result.status === "error") process.exitCode = 1;
 }
 
-function cmdCatalogList() {
-  if (!fs.existsSync(ARTIFACTS_ROOT)) {
-    console.log("No artifacts recorded yet. Run `npm run discover` first.");
-    return;
-  }
-  const files = fs.readdirSync(ARTIFACTS_ROOT).filter((f) => f.endsWith(".json"));
-  const byName = new Map<string, string>();
-  for (const f of files) {
-    const name = f.split(".v")[0];
-    const version = Number(f.match(/\.v(\d+)\.json$/)?.[1] ?? 0);
-    const existing = byName.get(name);
-    if (!existing || version > Number(existing.match(/\.v(\d+)\.json$/)?.[1] ?? 0)) byName.set(name, f);
-  }
-  for (const [name, file] of byName) {
-    const artifact = loadArtifact(path.join(ARTIFACTS_ROOT, file));
-    console.log(`\n${name} (v${artifact.version}, ${artifact.approval}, risk=${artifact.riskLevel})`);
-    console.log(`  ${artifact.description}`);
-    console.log(`  inputs: ${artifact.inputs.map((i) => `${i.name}:${i.type}`).join(", ")}`);
-    console.log(`  outputs: ${artifact.outputs.map((o) => `${o.name}:${o.type}`).join(", ")}`);
-  }
-}
-
-async function cmdCatalogInvoke(args: Record<string, string>, rest: string[]) {
-  const name = rest[0];
-  const jsonArgs = rest[1] ? JSON.parse(rest[1]) : {};
-  if (name !== OpenSubAccount.CAPABILITY_NAME) {
-    console.error(`Unknown capability "${name}". Known: ${OpenSubAccount.CAPABILITY_NAME}`);
-    process.exitCode = 1;
-    return;
-  }
-  await cmdReplay({
-    member: jsonArgs.memberId,
-    type: jsonArgs.subAccountType,
-    nickname: jsonArgs.nickname,
-    deposit: String(jsonArgs.depositAmount ?? ""),
-    artifact: args.artifact,
-  });
-}
-
-function cmdApprove(args: Record<string, string>) {
-  // Stands in for a human reviewer signing off in a real review UI: reads
-  // the artifact, flips draft -> approved, writes it back. Only an approved
-  // artifact skips the per-invocation risk-confirmation gate on replay.
-  const file = args.artifact ?? latestArtifactFile(ARTIFACTS_ROOT, OpenSubAccount.CAPABILITY_NAME);
-  const artifact = loadArtifact(file);
-  artifact.approval = "approved";
-  writeArtifactToFile(file, artifact);
-  console.log(`Approved: ${file}`);
-}
-
-function cmdUnapprove(args: Record<string, string>) {
-  const file = args.artifact ?? latestArtifactFile(ARTIFACTS_ROOT, OpenSubAccount.CAPABILITY_NAME);
-  const artifact = loadArtifact(file);
-  artifact.approval = "draft";
-  writeArtifactToFile(file, artifact);
-  console.log(`Reverted to draft: ${file}`);
-}
-
 async function main() {
   const [, , command, ...rest] = process.argv;
   const args = parseArgs(rest);
@@ -224,13 +165,8 @@ async function main() {
 
   if (command === "discover") await cmdDiscover(args);
   else if (command === "replay") await cmdReplay(args);
-  else if (command === "approve") cmdApprove(args);
-  else if (command === "unapprove") cmdUnapprove(args);
-  else if (command === "catalog") {
-    if (rest[0] === "invoke") await cmdCatalogInvoke(args, rest.slice(1));
-    else cmdCatalogList();
-  } else {
-    console.log("Usage: tsx src/cli.ts <discover|replay|catalog|approve|unapprove> [--flags]");
+  else {
+    console.log("Usage: tsx src/cli.ts <discover|replay> [--flags]");
     process.exitCode = 1;
   }
 

@@ -73,8 +73,7 @@ resolution code as discovery, (2) an explicit three-way result taxonomy, and (3)
 
 **The taxonomy**, returned as a structured `ReplayResult`:
 - `success` (with typed `outputs` and which checkpoint matched),
-- `business_outcome` (a named, declared, expected result — `member_not_found`, `member_frozen`,
-  three validation-error variants),
+- `business_outcome` (a named, declared, expected result — `member_not_found`, `member_frozen`),
 - `error`, itself split into `errorType`: `locator_resolution`, `checkpoint_failed`,
   `input_validation`, `policy_violation`, `operator_rejected`, `unrecognized_state` — each
   carrying `step`, `expected`, `observed`, and an `evidencePath` screenshot.
@@ -101,10 +100,10 @@ exactly why the brief insists the discovery run has to be real.
 
 **Secondarily, UI drift:** the fallback chain (role/name → attribute → text → CSS path) is the
 primary drift defense — a renamed CSS class or an added table row doesn't break a step whose
-first candidate is `role=button, name="Open Sub-Account"`. The drift-demo run in
-`evidence/INDEX.md` (Supplementary) demonstrates the case where drift breaks *every* candidate:
-replay finds no declared outcome matches either, and escalates with full context rather than
-guessing.
+first candidate is `role=button, name="Open Sub-Account"`. If drift breaks every candidate for a
+step, the same locator-resolution failure path that handles any other hard failure applies:
+no declared outcome matches the page either, so replay escalates with full context rather than
+guessing (see §5) — not a separate code path, and not separately demonstrated in `/evidence` (§7).
 
 ## 4. Heterogeneity & multi-tenant
 
@@ -146,12 +145,17 @@ Three pieces, in `escalation/`:
   directly on the live page, recorded against the intervention), `POST /interventions/:id/resume`
   (hand control back with a resolution). This is the seam the brief calls out: pause, cede
   control of the *live* session, resume, with context and evidence preserved across the handoff.
-- Two triggers are wired end-to-end and demonstrated in `/evidence` (see `evidence/INDEX.md`):
-  a **risky-action authorization gate** (an unattended, non-approved capability pauses before its
-  one `risky`-flagged step) and a **hard-failure recovery** (no declared outcome recognizes the
-  page; a human performs the missing action directly through the operator API; automation
-  resumes from the next step). `humanActions` on the resolved intervention records exactly what
-  the human did, by `refId` and value.
+- The mechanism is generic — `escalate()` (`escalation/escalate.ts`) is one shared call used
+  wherever automation cannot safely proceed — but only one trigger is demonstrated end-to-end in
+  `/evidence`: the **risky-action authorization gate**, where an unattended, non-approved
+  capability pauses before its one `risky`-flagged step, a human performs the click themselves
+  through `POST /interventions/:id/actions`, and automation resumes without repeating the action
+  (`humanActions` on the resolved intervention records exactly what the human did, by `refId` and
+  value — this is also the regression check for a double-execution bug §7 covers). Hard-failure
+  escalation (no declared outcome recognizes the page — e.g. locator exhaustion from UI drift)
+  goes through the identical pause/resume path; it is not separately demonstrated, since one real
+  handoff is what the brief's §3.6 asks for and a second scenario would just be the same
+  mechanism again under a different name for its trigger.
 
 **What's mocked, deliberately:** the operator console is a bare HTML page plus scripted `curl`
 calls for reproducible evidence, per the brief's scope note. What's real is everything under it —
@@ -173,10 +177,13 @@ map — fine at this scale, not the place to add infrastructure prematurely).
   re-evaluated from a description string at replay time (which would let classification drift
   independently of the policy that produced it). An unattended replay of a risky step requires
   explicit authorization unless the artifact carries `approval: "approved"` — a human reviewer
-  action (`cli.ts approve`/`unapprove`), not an automatic transition. The one exception is
-  `discover --auto-approve-risky`: since that flag already means "trust this end-to-end without
-  a human in the loop" for the discovery run itself, it marks the resulting artifact approved too
-  rather than requiring a redundant second sign-off before the first replay.
+  decision, deliberately kept out of the CLI (no `approve`/`unapprove` command): flipping the
+  field is a one-line edit to the artifact JSON a reviewer makes directly, not an action the
+  system automates for itself. `discover --auto-approve-risky` is the one built-in exception —
+  since that flag already means "trust this end-to-end without a human in the loop" for the
+  discovery run itself, it marks the resulting artifact approved too, rather than requiring a
+  redundant second sign-off before the first replay (see `evidence/INDEX.md` for how the
+  escalation demo gets a `draft` artifact to pause against instead).
 - **Redaction**: credentials are declared as ordinary parameters (`username`/`password`, injected
   from environment at replay time, never accepted as an agent-supplied invocation argument — see
   `config.ts`), which means the recorder resolves them to `{kind: "param", name: "password"}`
@@ -198,18 +205,27 @@ map — fine at this scale, not the place to add infrastructure prematurely).
   believe it wouldn't require touching the artifact schema.
 - **Operator console UI** — scripted HTTP calls instead of a person clicking, for reproducible
   evidence (§5); the API underneath is real.
-- **Confidence scoring / stability replay (stretch)** — not built. I built one stretch goal
-  instead of several, per the brief's "depth over breadth": the agent-facing catalog/invoke
-  interface (`cli.ts catalog invoke`), because it's the piece that actually demonstrates "an AI
-  agent could call this by name with typed args," which is the project's stated through-line.
-- **What I'd build next:** a second recorded capability (to see how much of the schema/recorder
-  is truly capability-agnostic vs. accidentally shaped by this one flow), the base-artifact +
-  override mechanism for multi-tenant reuse, and multi-run stability scoring before gating
-  anything on `approval: "approved"` automatically rather than by human action.
-- **Process notes, briefly:** a `/code-review` pass found and fixed 8 issues (most notably a
-  double-execution bug in the risky-action escalation gate — an operator who authorized a step by
-  performing it themselves had it performed a second time by automation), a `/simplify` pass
-  deduplicated logic that pass's fixes had scattered across files, and a direct re-read of the
-  brief (not just the code) found two more real gaps — origin-only allowlisting where the brief
-  asks for "domains/routes," and action logs that captured *what* the agent did but not *why*.
-  Full list and regression evidence: `evidence/INDEX.md`.
+- **Agent-facing catalog.** Considered — a `catalog list`/`catalog invoke` layer that let an AI
+  agent discover and call a capability by name with typed JSON args. Cut: `replay` with typed CLI
+  flags (`--member`, `--type`, `--nickname`, `--deposit`) already demonstrates the invocation
+  contract an agent would use — the same artifact, the same typed inputs/outputs, just reached
+  through flags instead of a name lookup. A catalog layer would add capability-discovery and
+  versioning questions (how does an agent enumerate capabilities, resolve a name to a version)
+  without adding eval-relevant signal beyond what `replay` already shows.
+- **A second escalation demo (UI-drift / hard-failure recovery).** Cut — one handoff, cleanly
+  demonstrated (the risky-action gate, §5), is what §3.6 asks for. Hard-failure escalation goes
+  through the identical `escalate()`/session-manager/operator-API path; it would exercise the same
+  mechanism under a different trigger, not a different mechanism.
+- **Three of the six outcome types the target app actually has.** `known-outcomes.meridian.ts`
+  keeps `member_not_found`, `member_frozen`, and `session_expired` (recoverable) — enough to show
+  the taxonomy isn't binary. Three validation-error variants (missing nickname, non-positive
+  deposit, deposit over the teller limit) are real app behaviors a production capability would
+  still declare, but aren't in this build because nothing in the demo path exercises them.
+- **An `approve`/`unapprove` CLI command.** Cut in favor of the artifact's `approval` field being
+  a plain JSON edit a human reviewer makes directly (§6) — `discover --auto-approve-risky` is the
+  only way this build sets it programmatically, and the escalation demo uses a second artifact
+  file left in `draft` rather than a command that flips the field back and forth.
+- **What I'd build next:** a second recorded capability (to see how much of the schema/recorder is
+  truly capability-agnostic vs. accidentally shaped by this one flow), the base-artifact + override
+  mechanism for multi-tenant reuse, and multi-run stability scoring before gating anything on
+  `approval: "approved"` automatically rather than by human action.

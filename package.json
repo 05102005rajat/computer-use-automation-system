@@ -9,7 +9,6 @@
     "operator": "tsx src/escalation/operator-server.ts",
     "discover": "tsx src/cli.ts discover",
     "replay": "tsx src/cli.ts replay",
-    "catalog": "tsx src/cli.ts catalog",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/**/*.test.ts"
   },

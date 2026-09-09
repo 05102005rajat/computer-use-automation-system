@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "id": "open_sub_account-1788938887170",
+  "id": "open_sub_account-1788939802713",
   "name": "open_sub_account",
   "version": 1,
   "description": "Look up a member, read their savings balance, and open a new sub-account for them.",
-  "createdAt": "2026-09-09T07:28:07.170Z",
+  "createdAt": "2026-09-09T07:43:22.713Z",
   "discovery": {
     "sourceGoal": "Log into the teller console (username \"teller\", password \"[REDACTED]\"). Then look up member 10023, extract their current savings balance as \"savingsBalance\", then open a new \"share\" sub-account for them with nickname \"Holiday Fund\" and an initial deposit of 50. Once you reach the confirmation screen, extract the confirmation number as \"confirmationNumber\", then finish successfully.",
     "model": "claude-sonnet-4-5",
-    "transcriptRef": "evidence/discovery-1788938840352"
+    "transcriptRef": "evidence/discovery-1788939753680"
   },
   "target": {
     "vendorProduct": "meridian-teller-console",
@@ -456,63 +456,6 @@
       "detector": {
         "textPresent": "is FROZEN",
         "frame": "main"
-      }
-    },
-    {
-      "name": "validation_error_missing_nickname",
-      "description": "Sub-account nickname was left blank.",
-      "category": "business_outcome",
-      "detector": {
-        "textPresent": "Nickname is required.",
-        "frame": {
-          "iframeLocator": {
-            "candidates": [
-              {
-                "strategy": "css",
-                "selector": "iframe"
-              }
-            ],
-            "robustnessNote": "single iframe on page"
-          }
-        }
-      }
-    },
-    {
-      "name": "validation_error_deposit_non_positive",
-      "description": "Initial deposit was zero, negative, or not a number.",
-      "category": "business_outcome",
-      "detector": {
-        "textPresent": "Initial deposit must be a positive number.",
-        "frame": {
-          "iframeLocator": {
-            "candidates": [
-              {
-                "strategy": "css",
-                "selector": "iframe"
-              }
-            ],
-            "robustnessNote": "single iframe on page"
-          }
-        }
-      }
-    },
-    {
-      "name": "validation_error_deposit_over_limit",
-      "description": "Initial deposit exceeded the teller's $10,000 authorization limit.",
-      "category": "business_outcome",
-      "detector": {
-        "textPresent": "exceeds the $10,000 teller limit",
-        "frame": {
-          "iframeLocator": {
-            "candidates": [
-              {
-                "strategy": "css",
-                "selector": "iframe"
-              }
-            ],
-            "robustnessNote": "single iframe on page"
-          }
-        }
       }
     },
     {
