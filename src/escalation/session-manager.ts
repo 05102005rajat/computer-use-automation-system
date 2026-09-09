@@ -60,10 +60,6 @@ export function getPage(runId: string): Page {
   return entry.page;
 }
 
-export function getControl(runId: string): ControlState {
-  return sessions.get(runId)?.control ?? "automation";
-}
-
 /** Throws unless the session is currently under human control. Callers that
  * are about to mutate the live page (the operator's manual-action endpoint)
  * must call this immediately before the mutation, not only record the
@@ -81,10 +77,6 @@ export function listPending(): InterventionRequest[] {
   return [...sessions.values()]
     .map((s) => s.pending)
     .filter((p): p is InterventionRequest => !!p && p.status === "pending");
-}
-
-export function getPending(runId: string): InterventionRequest | undefined {
-  return sessions.get(runId)?.pending;
 }
 
 /** Called by automation when it cannot safely proceed. Flips control to

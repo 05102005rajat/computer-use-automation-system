@@ -3,7 +3,6 @@ import express from "express";
 import {
   assertHumanControl,
   getPage,
-  getPending,
   listPending,
   performHumanAction,
   resumeSession,
@@ -34,15 +33,14 @@ export function createOperatorServer() {
   });
 
   app.get("/interventions/:id", async (req, res) => {
-    const pending = [...listPending(), ...[]].find((p) => p.id === req.params.id);
-    const req_ = pending ?? findResolved(req.params.id);
-    if (!req_) return res.status(404).json({ error: "not found" });
+    const pending = getPendingById(req.params.id);
+    if (!pending) return res.status(404).json({ error: "not found" });
     try {
-      const page = getPage(req_.runId);
+      const page = getPage(pending.runId);
       const snapshot = await takeSnapshot(page);
-      res.json({ intervention: req_, snapshot });
+      res.json({ intervention: pending, snapshot });
     } catch {
-      res.json({ intervention: req_, snapshot: null });
+      res.json({ intervention: pending, snapshot: null });
     }
   });
 
@@ -106,12 +104,6 @@ export function createOperatorServer() {
 
 function getPendingById(id: string) {
   return listPending().find((p) => p.id === id);
-}
-
-// Placeholder for symmetry; resolved interventions aren't retained beyond the
-// session-manager's in-memory pending map in this minimal implementation.
-function findResolved(_id: string) {
-  return undefined;
 }
 
 const OPERATOR_HTML = `<!doctype html>

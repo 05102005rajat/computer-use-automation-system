@@ -3,16 +3,12 @@ import path from "node:path";
 import { CapabilityArtifactSchema, type CapabilityArtifact } from "./schema.js";
 import { redactValue } from "../guardrails/redaction.js";
 
-export function artifactPath(root: string, name: string, version: number): string {
+function artifactPath(root: string, name: string, version: number): string {
   return path.join(root, `${name}.v${version}.json`);
 }
 
-/** Validates and redacts before writing to an exact path -- shared by
- * `saveArtifact` (which derives the path from name+version) and any caller
- * that already has a specific file path in hand (e.g. approving one) and
- * must not silently redirect the write to the canonical name/version path
- * instead. */
-export function writeArtifactToFile(file: string, artifact: CapabilityArtifact): CapabilityArtifact {
+/** Validates and redacts before writing to an exact path. */
+function writeArtifactToFile(file: string, artifact: CapabilityArtifact): CapabilityArtifact {
   const validated = CapabilityArtifactSchema.parse(artifact);
   fs.writeFileSync(file, JSON.stringify(redactValue(validated), null, 2));
   return validated;
