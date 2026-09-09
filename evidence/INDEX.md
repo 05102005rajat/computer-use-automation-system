@@ -61,6 +61,31 @@ re-verified against the four runs above:
   design) produced an unclassified hard failure instead of `errorType: "input_validation"`. Added
   a dedicated error type so it's now classified correctly.
 
+## Test coverage for the second review pass
+
+A follow-up self-audit found that only 1 of these 8 fixes (the XSS one) had a regression test.
+Added fast tests for 6 more, several of which launch a real headless Chromium against a
+self-contained `page.setContent()` fixture rather than mocking Playwright, so they exercise real
+locator resolution: `agent/perception.test.ts` (the iframe path-suffix fix, plus a direct assertion
+that the computed value is never a substring the literal-`*` bug would have produced),
+`replay/locator.test.ts` (ambiguous-match rejection), `replay/executor.test.ts` (the
+`MissingParamError` classification, and the post-click route-allowlist check via a direct call to
+`performAction` with both a restrictive and a permissive policy), and
+`escalation/session-manager.test.ts` (`assertHumanControl` correctly denies before an escalation
+and after one resumes, not just during).
+
+Two of the 8 remain covered only by live regression runs against the real target app, not a fast
+test, and this is a real gap rather than a hidden one:
+- **The discovery loop's double-execution fix** (`agent/loop.ts`) sits inside the live
+  Anthropic tool-call loop; a fast test would need to mock streaming tool-use responses, which is
+  disproportionate effort for a take-home relative to what it would catch beyond what
+  `replay/executor.test.ts`'s equivalent logic already exercises (both call sites use the same
+  `humanActions.length > 0` check).
+- **`escalation/operator-server.ts`'s HTTP route** wiring `assertHumanControl` +
+  `performLocatorAction` + the guardrail checks together is exercised by the live escalation demo
+  (`replay-1788945101208` above, re-run again after this change) but has no dedicated
+  Express-level test; the pieces it composes are each tested individually.
+
 ## Screen recordings (`videos/`)
 
 Real Playwright video capture (`evidence/video.ts`'s `launchPage`, gated behind a

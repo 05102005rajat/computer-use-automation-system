@@ -15,21 +15,21 @@ import { escalate } from "../escalation/escalate.js";
 // so a caller missing one fails deep inside step execution instead; this
 // dedicated error type lets that still be reported as `input_validation`
 // rather than falling through to an unclassified hard failure.
-class MissingParamError extends Error {
+export class MissingParamError extends Error {
   constructor(paramName: string) {
     super(`Missing required input parameter: ${paramName}`);
     this.name = "MissingParamError";
   }
 }
 
-function resolveValue(ref: ValueRef, params: Record<string, string>): string {
+export function resolveValue(ref: ValueRef, params: Record<string, string>): string {
   if (ref.kind === "literal") return ref.value;
   const v = params[ref.name];
   if (v === undefined) throw new MissingParamError(ref.name);
   return v;
 }
 
-type ActionableStep = Extract<CapabilityArtifact["steps"][number], { kind: "click" | "type" | "select" | "extract" | "wait_for" }>;
+export type ActionableStep = Extract<CapabilityArtifact["steps"][number], { kind: "click" | "type" | "select" | "extract" | "wait_for" }>;
 
 function isActionable(step: CapabilityArtifact["steps"][number]): step is ActionableStep {
   return step.kind !== "navigate";
@@ -44,7 +44,7 @@ function isActionable(step: CapabilityArtifact["steps"][number]): step is Action
  * recoverable-condition retry path, so an extract step retried after a
  * recovery can no longer fall through unhandled the way it once did when
  * the two call sites had drifted apart. */
-async function performAction(
+export async function performAction(
   step: ActionableStep,
   scope: Page | Frame,
   locator: import("playwright").Locator,

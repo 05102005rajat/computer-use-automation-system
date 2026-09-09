@@ -172,6 +172,19 @@ async function snapshotFrame(frame: Frame, frameRef: FrameRef, refPrefix: string
   };
 }
 
+// The "attribute" strategy's match is a literal CSS substring ([attr*=value]),
+// not a wildcard/glob -- a "*" placeholder in the value would never match a
+// real src, it'd just be a literal asterisk. So instead of embedding a fake
+// wildcard for the member id, strip the member-id segment entirely and keep
+// only the stable suffix that's the same for every member: a real substring
+// that genuinely is present in any member's src, no wildcard syntax needed.
+// Exported (and factored out of describeIframe, which needs a live Page) so
+// this string transform -- the actual bug that was fixed -- has a fast,
+// browser-free unit test instead of only being covered by a live run.
+export function computeStableIframeSuffix(src: string): string {
+  return src.replace(/^\/members\/[^/]+/, "");
+}
+
 /** Builds a locator descriptor for an iframe element found in the main frame,
  * so replay can re-find "the same frame" without relying on frame ordering. */
 async function describeIframe(page: Page, iframeIndex: number): Promise<LocatorSpec> {
@@ -180,13 +193,7 @@ async function describeIframe(page: Page, iframeIndex: number): Promise<LocatorS
     return frames[i]?.getAttribute("src") ?? "";
   }, iframeIndex);
 
-  // The "attribute" strategy's match is a literal CSS substring ([attr*=value]),
-  // not a wildcard/glob -- a "*" placeholder in the value would never match a
-  // real src, it'd just be a literal asterisk. So instead of embedding a fake
-  // wildcard for the member id, strip the member-id segment entirely and keep
-  // only the stable suffix that's the same for every member: a real substring
-  // that genuinely is present in any member's src, no wildcard syntax needed.
-  const stableSuffix = src.replace(/^\/members\/[^/]+/, "");
+  const stableSuffix = computeStableIframeSuffix(src);
 
   return {
     candidates: [

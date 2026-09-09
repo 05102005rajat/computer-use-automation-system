@@ -138,6 +138,11 @@ npm test        # node's built-in test runner, no extra framework
 npm run typecheck
 ```
 
-Tests cover the locator fallback ordering/robustness logic, the route-allowlist and URL-pattern
-matcher used by outcome/checkpoint detection, and the redaction utilities -- the parts where a
-silent regression would be hardest to notice by just eyeballing a passing demo run.
+37 tests, mostly plain unit tests but several launch a real (headless) Chromium against a
+self-contained `page.setContent()` fixture -- no target-app server needed -- specifically to
+exercise fixes that only manifest against actual Playwright locator resolution: locator fallback
+ordering, ambiguous-match rejection, the route allowlist being enforced after a click (not just on
+explicit navigates), the iframe locator's path-suffix computation, redaction, the input-validation
+error classification, and the operator's control-state check. See `evidence/INDEX.md` for the two
+fixes (out of a `/code-review` pass's 8 findings) that are exercised only by live regression runs,
+not a fast test, and why.
